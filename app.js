@@ -290,7 +290,7 @@ function openSettings(){
 function removeDemoItems(){
   const demoNames = new Set(["T-shirt bleu","Jean noir","Baskets blanches","Veste beige","Pull gris"]);
   const before = db.items.length;
-  db.items = db.items.filter(x => !demoNames.has(String(x.name || "").trim()));
+  db.items = db.items.filter(x => !demoNames.has(String(x.name || "").trim()) && String(x.notes || "").trim() !== "Article de démonstration");
   if(db.items.length !== before){
     db.outfits = db.outfits.map(o => ({...o, items:(o.items||[]).filter(id => db.items.some(x=>x.id===id))}));
     save();
@@ -326,7 +326,7 @@ function itemCard(item){
         <span class="tag">${esc(item.category)}</span>
         <span class="tag">${esc(item.color)}</span>
         <span class="tag">${esc(item.occasion)}</span>
-        <p class="muted">${item.wears} port${item.wears>1?"s":""}é${item.wears>1?"s":""}</p>
+        <p class="muted">${item.wears} porté${item.wears>1?"s":""}</p>
         <div class="actions">
           <button class="ghost" data-action="edit" data-id="${item.id}">Modifier</button>
           <button class="ghost" data-action="wear" data-id="${item.id}">Porté aujourd'hui</button>
