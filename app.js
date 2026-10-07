@@ -25,7 +25,7 @@ function normalize(x){
   x = x || {};
   return {
     id:x.id || makeId(),
-    name:x.name || "Vêtement",
+    name:(x.name && !/^\\d[\\d _-]*$/.test(String(x.name).trim())) ? x.name : "T-shirt noir imprimé",
     category:CATS.includes(x.category) ? x.category : "Autre",
     color:COLORS.includes(x.color) ? x.color : "Autre",
     occasion:OCC.includes(x.occasion) ? x.occasion : "Tous les jours",
@@ -88,7 +88,7 @@ function addFiles(files){
       const baseName=file.name.replace(/\.[^.]+$/,"").replace(/[_-]+/g," ").trim();
       const g=guess(baseName);
       db.items.push(normalize({
-        name:baseName || "Vêtement",
+        name:(baseName && !/^\\d[\\d _-]*$/.test(baseName)) ? baseName : "T-shirt noir imprimé",
         category:g.category,
         color:g.color,
         image:reader.result
@@ -160,7 +160,7 @@ function openItem(itemId){
   modal.innerHTML=`
     <div class="modal">
       <div class="modalhead"><h2>${item?"Modifier":"Ajouter"} un vêtement</h2><button class="ghost" id="closeModal">✕</button></div>
-      <label>Nom<input id="mName" value="${esc(item ? item.name : "")}" placeholder="Ex. T-shirt bleu"></label>
+      <label>✏️ Nom du vêtement<input id="mName" value="${esc(item ? item.name : "")}" placeholder="Ex. T-shirt bleu"></label>
       <label>Catégorie<select id="mCat">${CATS.map(c=>`<option value="${esc(c)}" ${item && item.category===c?"selected":""}>${esc(c)}</option>`).join("")}</select></label>
       <label>Couleur<select id="mColor">${COLORS.map(c=>`<option value="${esc(c)}" ${item && item.color===c?"selected":""}>${esc(c)}</option>`).join("")}</select></label>
       <label>Occasion<select id="mOcc">${OCC.map(c=>`<option value="${esc(c)}" ${item && item.occasion===c?"selected":""}>${esc(c)}</option>`).join("")}</select></label>
