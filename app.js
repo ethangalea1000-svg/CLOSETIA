@@ -287,33 +287,8 @@ function openSettings(){
   };
 }
 
-function removeDemoItems(){
-  const demoNames = new Set(["T-shirt bleu","Jean noir","Baskets blanches","Veste beige","Pull gris"]);
-  const before = db.items.length;
-  db.items = db.items.filter(x => !demoNames.has(String(x.name || "").trim()) && String(x.notes || "").trim() !== "Article de démonstration");
-  if(db.items.length !== before){
-    db.outfits = db.outfits.map(o => ({...o, items:(o.items||[]).filter(id => db.items.some(x=>x.id===id))}));
-    save();
-    return true;
-  }
-  return false;
-}
-
 function demo(){
-  const data=[
-    ["T-shirt bleu","Haut","Bleu"],
-    ["Jean noir","Bas","Noir"],
-    ["Baskets blanches","Chaussures","Blanc"],
-    ["Veste beige","Veste","Beige"],
-    ["Pull gris","Haut","Gris"]
-  ];
-  db.items=data.map(([name,category,color])=>normalize({
-    name,category,color,notes:"Article de démonstration",
-    image:"data:image/svg+xml;charset=UTF-8,"+encodeURIComponent(
-      `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="100%" height="100%" fill="${HEX[color]}"/><text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-size="32" fill="${color==="Blanc"?"#111827":"white"}">${name}</text></svg>`
-    )
-  }));
-  save();
+  alert("La démo est désactivée : CLOSETIA ne crée pas de faux vêtements.");
 }
 
 function itemCard(item){
@@ -497,7 +472,6 @@ window.openSettings=openSettings;
 window.openItem=openItem;
 window.closeModal=closeModal;
 window.render=render;
-removeDemoItems();
 db.items.forEach(item => {
   if(/^\\d[\\d _-]*$/.test(String(item.name || "").trim())){
     item.name = "T-shirt noir imprimé";
