@@ -1,1 +1,16 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111827"><meta name="description" content="CLOSETIA — dressing intelligent, local et portable"><link rel="manifest" href="manifest.json"><link rel="stylesheet" href="style.css"><title>CLOSETIA — Dressing intelligent</title></head><body><header><a href="#/" class="logo">CLOSETIA<span>.</span></a><nav><a href="#/">Accueil</a><a href="#/dressing">Dressing</a><a href="#/tenues">Tenues</a><a href="#/palette">Couleurs</a><a href="#/calendrier">Calendrier</a><a href="#/stats">Stats</a></nav></header><main id="app"></main><input id="photos" type="file" accept="image/*" multiple hidden><input id="importFile" type="file" accept=".json,application/json" hidden><footer>CLOSETIA · local-first · données exportables · aucune analyse corporelle</footer><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827"><meta name="description" content="CLOSETIA — ton dressing intelligent, local-first et exportable">
+<link rel="manifest" href="manifest.json"><link rel="stylesheet" href="style.css"><title>CLOSETIA — Dressing intelligent</title>
+</head>
+<body>
+<header class="topbar"><a class="logo" href="#/">CLOSETIA<span>.</span></a><nav>
+<a href="#/">Accueil</a><a href="#/dressing">Dressing</a><a href="#/tenues">Tenues</a><a href="#/palette">Couleurs</a><a href="#/calendrier">Calendrier</a><a href="#/stats">Stats</a>
+</nav><button class="iconbtn" onclick="openSettings()" aria-label="Réglages">⚙</button></header>
+<main id="app"></main>
+<input id="photos" type="file" accept="image/*" multiple hidden><input id="importFile" type="file" accept=".json,application/json" hidden>
+<footer>CLOSETIA · local-first · données exportables · aucune analyse corporelle</footer>
+<script src="app.js"></script>
+</body></html>
