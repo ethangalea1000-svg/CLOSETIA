@@ -287,6 +287,18 @@ function openSettings(){
   };
 }
 
+function removeDemoItems(){
+  const demoNames = new Set(["T-shirt bleu","Jean noir","Baskets blanches","Veste beige","Pull gris"]);
+  const before = db.items.length;
+  db.items = db.items.filter(x => !demoNames.has(String(x.name || "").trim()));
+  if(db.items.length !== before){
+    db.outfits = db.outfits.map(o => ({...o, items:(o.items||[]).filter(id => db.items.some(x=>x.id===id))}));
+    save();
+    return true;
+  }
+  return false;
+}
+
 function demo(){
   const data=[
     ["T-shirt bleu","Haut","Bleu"],
@@ -333,7 +345,7 @@ function home(){
       <div class="actions">
         <button class="primary" data-action="addPhotos">+ Ajouter des photos</button>
         <a class="ghost" href="#/dressing">Ouvrir mon dressing</a>
-        <button class="ghost" data-action="demo">Charger une démo</button>
+        
       </div>
     </div>
     <div class="dashboard">
@@ -485,6 +497,13 @@ window.openSettings=openSettings;
 window.openItem=openItem;
 window.closeModal=closeModal;
 window.render=render;
+removeDemoItems();
+db.items.forEach(item => {
+  if(/^\\d[\\d _-]*$/.test(String(item.name || "").trim())){
+    item.name = "T-shirt noir imprimé";
+  }
+});
+save(false);
 if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 render();
 })();
