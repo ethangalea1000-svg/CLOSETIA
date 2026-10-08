@@ -320,10 +320,49 @@ function saveProfileData(){
   db.settings.profile=p; save(); alert("Profil enregistré.");
 }
 function togglePrefColor(c){ var p=db.settings.profile; p.colors=p.colors||[]; p.colors=p.colors.includes(c)?p.colors.filter(function(x){return x!==c}):p.colors.concat(c); save(); }
+function brandCatalog(){
+  var p=db.settings.profile||{};
+  return "<div class=\"card brand-catalog\"><div class=\"brand-head\"><div><h2>Marques</h2><p class=\"muted\">Recherche dans un catalogue mondial de marques. Les résultats sont chargés à la demande pour ne pas ralentir CLOSETIA.</p></div><span class=\"badge\">Catalogue massif</span></div><div class=\"brand-search\"><input id=\"brandSearch\" placeholder=\"Rechercher une marque…\" autocomplete=\"off\"><button class=\"primary\" data-action=\"searchBrands\">Rechercher</button></div><div id=\"brandResults\" class=\"brand-results\"><p class=\"muted\">Tape au moins 2 caractères.</p></div><div class=\"brand-manual\"><input id=\"manualBrand\" placeholder=\"Marque absente ? Ajouter manuellement\"><button data-action=\"addManualBrand\">Ajouter</button></div></div>";
+}
+function renderBrandResults(results){
+  var box=$("brandResults"); if(!box)return;
+  var p=db.settings.profile||{}, fav=p.brands||[];
+  if(!results.length){box.innerHTML="<p class=\"muted\">Aucune marque trouvée.</p>";return}
+  box.innerHTML=results.slice(0,50).map(function(x){
+    var name=typeof x==="string"?x:(x.name||x);
+    var selected=fav.includes(name);
+    return "<button class=\"brand-result "+(selected?"selected":"")+"\" data-action=\"toggleBrand\" data-brand=\""+esc(name)+"\"><span>"+esc(name)+"</span><b>"+(selected?"✓":"+")+"</b></button>";
+  }).join("");
+}
+async function searchBrands(){
+  var q=(($("brandSearch")||{}).value||"").trim();
+  if(q.length<2){renderBrandResults([]);return}
+  var box=$("brandResults"); box.innerHTML="<p class=\"muted\">Recherche des marques…</p>";
+  try{
+    var r=await fetch("https://world.openfoodfacts.org/cgi/search.pl?search_terms="+encodeURIComponent(q)+"&search_simple=1&action=process&json=1&page_size=100");
+    var data=await r.json(), seen={}, out=[];
+    (data.products||[]).forEach(function(x){
+      (String(x.brands||"").split(",")).forEach(function(n){
+        n=n.trim(); if(n && n.toLowerCase().includes(q.toLowerCase()) && !seen[n.toLowerCase()]){seen[n.toLowerCase()]=1;out.push({name:n})}
+      });
+    });
+    renderBrandResults(out);
+  }catch(e){box.innerHTML="<p class=\"muted\">Catalogue temporairement indisponible. Tu peux ajouter la marque manuellement.</p>"}
+}
+function toggleBrand(name){
+  var p=db.settings.profile||{}; p.brands=p.brands||[];
+  p.brands=p.brands.includes(name)?p.brands.filter(function(x){return x!==name}):p.brands.concat(name);
+  db.settings.profile=p;save();
+  searchBrands();
+}
+function addManualBrand(){
+  var el=$("manualBrand"), n=(el&&el.value||"").trim(); if(!n)return;
+  toggleBrand(n); if(el)el.value="";
+}
 function profilePage(){
-  var p=db.settings.profile||fresh().settings.profile, styles=["Minimaliste","Streetwear","Casual","Sport","Élégant","Vintage","Créatif","Classique"], models=["T-shirt","Chemise","Pull","Sweat","Jean","Pantalon","Short","Veste","Manteau","Robe","Sneakers","Accessoire"], brands=["Nike","Adidas","Puma","New Balance","Uniqlo","Zara","H&M","Lacoste","Levi’s","Vans","Autre"];
+  var p=db.settings.profile||fresh().settings.profile, styles=["Minimaliste","Streetwear","Casual","Sport","Élégant","Vintage","Créatif","Classique"], models=["T-shirt","Chemise","Pull","Sweat","Jean","Pantalon","Short","Veste","Manteau","Robe","Sneakers","Accessoire"];
   function checks(a,k){return a.map(function(x){return "<label class=\"choice\"><input type=\"checkbox\" data-pref=\""+k+"\" value=\""+esc(x)+"\" "+((p[k+"s"]||[]).includes(x)?"checked":"")+"><span>"+esc(x)+"</span></label>"}).join("")}
-  return "<div class=\"section\"><span class=\"eyebrow\">PROFIL DE STYLE</span><h1>Mes goûts</h1><p class=\"muted\">Questionnaire de style, marques, modèles, budget et couleurs. Aucune analyse corporelle.</p><div class=\"card profile-card\"><label>Nom affiché<input id=\"profileName\" value=\""+esc(p.name)+"\" placeholder=\"Ex. Ethan\"></label><label>Ville pour la météo<input id=\"profileCity\" value=\""+esc(p.city)+"\" placeholder=\"Ex. Saint-Rémy-de-Provence\"></label><label>Budget maximum (€)<input id=\"profileBudget\" type=\"number\" min=\"0\" value=\""+Number(p.budget||0)+"\"></label><label class=\"check\"><input id=\"profileWeather\" type=\"checkbox\" "+(p.weather!==false?"checked":"")+"> Adapter les recommandations à la météo</label><h2>Styles</h2><div class=\"choices\">"+checks(styles,"style")+"</div><h2>Modèles préférés</h2><div class=\"choices\">"+checks(models,"model")+"</div><h2>Marques préférées</h2><div class=\"choices\">"+checks(brands,"brand")+"</div><h2>Couleurs favorites</h2><div class=\"actions\">"+COLORS.filter(function(x){return x!=="Autre"}).map(function(c){return "<button class=\"colorchoice "+(p.colors&&p.colors.includes(c)?"selected":"")+"\" data-action=\"prefColor\" data-color=\""+c+"\"><i class=\"swatch\" style=\"background:"+HEX[c]+"\"></i>"+c+"</button>"}).join("")+"</div><button class=\"primary\" id=\"saveProfile\">Enregistrer mon profil</button></div></div>";
+  return "<div class=\"section\"><span class=\"eyebrow\">PROFIL DE STYLE</span><h1>Mes goûts</h1><p class=\"muted\">Questionnaire de style, marques, modèles, budget et couleurs. Aucune analyse corporelle.</p><div class=\"card profile-card\"><label>Nom affiché<input id=\"profileName\" value=\""+esc(p.name)+"\" placeholder=\"Ex. Ethan\"></label><label>Ville pour la météo<input id=\"profileCity\" value=\""+esc(p.city)+"\" placeholder=\"Ex. Saint-Rémy-de-Provence\"></label><label>Budget maximum (€)<input id=\"profileBudget\" type=\"number\" min=\"0\" value=\""+Number(p.budget||0)+"\"></label><label class=\"check\"><input id=\"profileWeather\" type=\"checkbox\" "+(p.weather!==false?"checked":"")+"> Adapter les recommandations à la météo</label><h2>Styles</h2><div class=\"choices\">"+checks(styles,"style")+"</div><h2>Modèles préférés</h2><div class=\"choices\">"+checks(models,"model")+"</div>"+brandCatalog()+"<h2>Couleurs favorites</h2><div class=\"actions\">"+COLORS.filter(function(x){return x!=="Autre"}).map(function(c){return "<button class=\"colorchoice "+(p.colors&&p.colors.includes(c)?"selected":"")+"\" data-action=\"prefColor\" data-color=\""+c+"\"><i class=\"swatch\" style=\"background:"+HEX[c]+"\"></i>"+c+"</button>"}).join("")+"</div><button class=\"primary\" id=\"saveProfile\">Enregistrer mon profil</button></div></div>";
 }
 function colorimetryPage(){
   var c=db.settings.colorimetry||{palette:[],status:"Non définie"};
@@ -498,7 +537,7 @@ function bindPage(){
       else if(action==="deleteOutfit") deleteOutfit(itemId);
       else if(action==="palette") togglePalette(el.dataset.color);
       else if(action==="day") setCalendarDay(el.dataset.day);
-      else if(action==="demo") demo(); else if(action==="prefColor") togglePrefColor(el.dataset.color); else if(action==="addFriend") addFriend(); else if(action==="removeFriend") removeFriend(el.dataset.id);
+      else if(action==="demo") demo(); else if(action==="prefColor") togglePrefColor(el.dataset.color); else if(action==="searchBrands") searchBrands(); else if(action==="toggleBrand") toggleBrand(el.dataset.brand); else if(action==="addManualBrand") addManualBrand(); else if(action==="addFriend") addFriend(); else if(action==="removeFriend") removeFriend(el.dataset.id);
     });
   });
   if($("saveProfile")) $("saveProfile").onclick=saveProfileData;
