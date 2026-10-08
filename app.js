@@ -14,7 +14,7 @@ const importFile = $("importFile");
 
 let db = load();
 
-function fresh(){ return {items:[],outfits:[],calendar:{},palette:[],settings:{}}; }
+function fresh(){ return {items:[],outfits:[],calendar:{},palette:[],settings:{profile:{name:"",city:"",styles:[],models:[],brands:[],budget:50,weather:true,colors:[]},colorimetry:{palette:[],status:"Non définie"},friends:[],shared:[]}}; }
 
 function makeId(){
   if(window.crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -48,7 +48,7 @@ function load(){
       outfits:Array.isArray(x.outfits)?x.outfits:[],
       calendar:x.calendar && typeof x.calendar==="object"?x.calendar:{},
       palette:Array.isArray(x.palette)?x.palette:[],
-      settings:x.settings && typeof x.settings==="object"?x.settings:{}
+      settings:{...fresh().settings,...(x.settings||{}),profile:{...fresh().settings.profile,...((x.settings&&x.settings.profile)||{})}}
     };
   }catch(e){
     console.error("CLOSETIA load error",e);
@@ -311,6 +311,44 @@ function itemCard(item){
     </article>`;
 }
 
+function saveProfileData(){
+  var p=db.settings.profile||{}; p.name=($("profileName")||{}).value||""; p.city=($("profileCity")||{}).value||"";
+  p.budget=Number(($("profileBudget")||{}).value||0); p.weather=Boolean(($("profileWeather")||{}).checked);
+  p.styles=Array.from(document.querySelectorAll("[data-pref=style]:checked")).map(function(x){return x.value});
+  p.models=Array.from(document.querySelectorAll("[data-pref=model]:checked")).map(function(x){return x.value});
+  p.brands=Array.from(document.querySelectorAll("[data-pref=brand]:checked")).map(function(x){return x.value});
+  db.settings.profile=p; save(); alert("Profil enregistré.");
+}
+function togglePrefColor(c){ var p=db.settings.profile; p.colors=p.colors||[]; p.colors=p.colors.includes(c)?p.colors.filter(function(x){return x!==c}):p.colors.concat(c); save(); }
+function profilePage(){
+  var p=db.settings.profile||fresh().settings.profile, styles=["Minimaliste","Streetwear","Casual","Sport","Élégant","Vintage","Créatif","Classique"], models=["T-shirt","Chemise","Pull","Sweat","Jean","Pantalon","Short","Veste","Manteau","Robe","Sneakers","Accessoire"], brands=["Nike","Adidas","Puma","New Balance","Uniqlo","Zara","H&M","Lacoste","Levi’s","Vans","Autre"];
+  function checks(a,k){return a.map(function(x){return "<label class=\"choice\"><input type=\"checkbox\" data-pref=\""+k+"\" value=\""+esc(x)+"\" "+((p[k+"s"]||[]).includes(x)?"checked":"")+"><span>"+esc(x)+"</span></label>"}).join("")}
+  return "<div class=\"section\"><span class=\"eyebrow\">PROFIL DE STYLE</span><h1>Mes goûts</h1><p class=\"muted\">Questionnaire de style, marques, modèles, budget et couleurs. Aucune analyse corporelle.</p><div class=\"card profile-card\"><label>Nom affiché<input id=\"profileName\" value=\""+esc(p.name)+"\" placeholder=\"Ex. Ethan\"></label><label>Ville pour la météo<input id=\"profileCity\" value=\""+esc(p.city)+"\" placeholder=\"Ex. Saint-Rémy-de-Provence\"></label><label>Budget maximum (€)<input id=\"profileBudget\" type=\"number\" min=\"0\" value=\""+Number(p.budget||0)+"\"></label><label class=\"check\"><input id=\"profileWeather\" type=\"checkbox\" "+(p.weather!==false?"checked":"")+"> Adapter les recommandations à la météo</label><h2>Styles</h2><div class=\"choices\">"+checks(styles,"style")+"</div><h2>Modèles préférés</h2><div class=\"choices\">"+checks(models,"model")+"</div><h2>Marques préférées</h2><div class=\"choices\">"+checks(brands,"brand")+"</div><h2>Couleurs favorites</h2><div class=\"actions\">"+COLORS.filter(function(x){return x!=="Autre"}).map(function(c){return "<button class=\"colorchoice "+(p.colors&&p.colors.includes(c)?"selected":"")+"\" data-action=\"prefColor\" data-color=\""+c+"\"><i class=\"swatch\" style=\"background:"+HEX[c]+"\"></i>"+c+"</button>"}).join("")+"</div><button class=\"primary\" id=\"saveProfile\">Enregistrer mon profil</button></div></div>";
+}
+function colorimetryPage(){
+  var c=db.settings.colorimetry||{palette:[],status:"Non définie"};
+  return "<div class=\"section\"><span class=\"eyebrow\">COULEURS PERSONNALISÉES</span><h1>Colorimétrie</h1><div class=\"card\"><h2>📷 Photo</h2><p class=\"muted\">CLOSETIA extrait les couleurs visibles de la photo pour construire une palette vestimentaire. Il ne fait aucune analyse du corps ou de la silhouette.</p><input id=\"colorPhoto\" type=\"file\" accept=\"image/*\"><div class=\"photoPalette\">"+(c.palette||[]).map(function(x){return "<i style=\"background:"+x+"\"></i>"}).join("")+"</div><p class=\"muted\">"+esc(c.status)+"</p></div><div class=\"card\" style=\"margin-top:15px\"><h2>Questionnaire couleurs</h2><div class=\"actions\">"+COLORS.filter(function(x){return x!=="Autre"}).map(function(x){return "<button class=\"colorchoice\" data-action=\"prefColor\" data-color=\""+x+"\"><i class=\"swatch\" style=\"background:"+HEX[x]+"\"></i>"+x+"</button>"}).join("")+"</div></div></div>";
+}
+function analyzeColorPhoto(file){
+  if(!file)return; var img=new Image(), url=URL.createObjectURL(file);
+  img.onload=function(){ var cv=document.createElement("canvas"),cx=cv.getContext("2d",{willReadFrequently:true}); cv.width=100;cv.height=100;cx.drawImage(img,0,0,100,100);var d=cx.getImageData(0,0,100,100).data,b={};
+    for(var i=0;i<d.length;i+=20){var k=Math.round(d[i]/32)*32+","+Math.round(d[i+1]/32)*32+","+Math.round(d[i+2]/32)*32;b[k]=(b[k]||0)+1}
+    db.settings.colorimetry={palette:Object.keys(b).sort(function(a,z){return b[z]-b[a]}).slice(0,6).map(function(x){return "rgb("+x+")"}),status:"Palette extraite de la photo"};save();URL.revokeObjectURL(url);
+  }; img.src=url;
+}
+function starPage(){
+  var p=db.settings.profile||{}, list=db.items.slice().sort(function(a,b){var sa=(b.favorite?5:0)+(p.colors&&p.colors.includes(b.color)?5:0)+b.wears;var sb=(a.favorite?5:0)+(p.colors&&p.colors.includes(a.color)?5:0)+a.wears;return sa-sb}).slice(0,8);
+  return "<div class=\"section\"><span class=\"eyebrow\">RECOMMANDATIONS</span><h1>⭐ Outfit Star</h1><div id=\"weatherBox\" class=\"card weatherbox\">Météo : configure ta ville dans Mon style.</div><p class=\"muted\">Pièces favorisées selon tes goûts, tes couleurs, tes favoris et ton historique.</p><div class=\"grid\">"+(list.length?list.map(itemCard).join(""):"<div class=\"empty\">Ajoute des vêtements pour obtenir des recommandations.</div>")+"</div></div>";
+}
+function friendsPage(){
+  var fs=db.settings.friends||[]; return "<div class=\"section\"><span class=\"eyebrow\">SOCIAL</span><h1>Amis</h1><div class=\"card\"><p class=\"muted\">Les amis sont préparés localement. Le partage en ligne sera branché sur D1/R2 ensuite.</p><div class=\"toolbar\"><input id=\"friendName\" placeholder=\"Nom de l’ami\"><button class=\"primary\" data-action=\"addFriend\">Ajouter</button></div></div><div class=\"grid\">"+(fs.length?fs.map(function(x,i){return "<div class=\"card\"><h3>👤 "+esc(x)+"</h3><button class=\"danger\" data-action=\"removeFriend\" data-id=\""+i+"\">Supprimer</button></div>"}).join(""):"<div class=\"empty\">Aucun ami.</div>")+"</div></div>";
+}
+function addFriend(){var n=(($("friendName")||{}).value||"").trim();if(!n)return;db.settings.friends=(db.settings.friends||[]).concat(n);save()}
+function removeFriend(i){db.settings.friends.splice(Number(i),1);save()}
+function smartWeather(){
+  var p=db.settings.profile||{}; if(!p.city){$("weatherBox").innerHTML="Ajoute ta ville dans Mon style.";return}
+  fetch("https://geocoding-api.open-meteo.com/v1/search?name="+encodeURIComponent(p.city)+"&count=1&language=fr&format=json").then(function(r){return r.json()}).then(function(g){var x=g.results&&g.results[0];if(!x)throw 0;return fetch("https://api.open-meteo.com/v1/forecast?latitude="+x.latitude+"&longitude="+x.longitude+"&current=temperature_2m,rain,wind_speed_10m&timezone=auto").then(function(r){return r.json()}).then(function(w){$("weatherBox").innerHTML="<b>🌤️ "+esc(x.name)+"</b><span>"+w.current.temperature_2m+"°C · pluie "+w.current.rain+" mm · vent "+w.current.wind_speed_10m+" km/h</span>"})}).catch(function(){$("weatherBox").textContent="Météo indisponible pour le moment."});
+}
 function home(){
   return `
     <div class="hero">
@@ -327,7 +365,7 @@ function home(){
       <a class="card feature" href="#/dressing"><b>👕 Dressing</b><span>${db.items.length} vêtement${db.items.length>1?"s":""} · recherche · filtres · favoris</span></a>
       <a class="card feature" href="#/tenues"><b>✨ Tenues</b><span>${db.outfits.length} tenue${db.outfits.length>1?"s":""} · générateur</span></a>
       <a class="card feature" href="#/palette"><b>🎨 Couleurs</b><span>Répartition et préférences</span></a>
-      <a class="card feature" href="#/calendrier"><b>📅 Calendrier</b><span>Planifier les tenues</span></a>
+      <a class="card feature" href="#/calendrier"><b>📅 Calendrier</b><span>Planifier les tenues</span></a><a class="card feature" href="#/profil"><b>🧭 Mon style</b><span>Questionnaire · marques · budget</span></a><a class="card feature" href="#/colorimetrie"><b>🎨 Colorimétrie</b><span>Photo + préférences couleurs</span></a><a class="card feature" href="#/star"><b>⭐ Outfit Star</b><span>Recommandations personnalisées</span></a><a class="card feature" href="#/amis"><b>👥 Amis</b><span>Préparer le partage de tenues</span></a>
     </div>`;
 }
 
@@ -432,7 +470,7 @@ function render(){
   if(!app) return;
   document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("active",a.getAttribute("href")==="#/"+page));
   try{
-    app.innerHTML=page==="dressing"?dressing():page==="tenues"?outfits():page==="palette"?palette():page==="calendrier"?calendar():page==="stats"?stats():home();
+    app.innerHTML=page==="dressing"?dressing():page==="tenues"?outfits():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():home();
     bindPage();
   }catch(e){
     console.error("CLOSETIA render error",e);
@@ -460,9 +498,12 @@ function bindPage(){
       else if(action==="deleteOutfit") deleteOutfit(itemId);
       else if(action==="palette") togglePalette(el.dataset.color);
       else if(action==="day") setCalendarDay(el.dataset.day);
-      else if(action==="demo") demo();
+      else if(action==="demo") demo(); else if(action==="prefColor") togglePrefColor(el.dataset.color); else if(action==="addFriend") addFriend(); else if(action==="removeFriend") removeFriend(el.dataset.id);
     });
   });
+  if($("saveProfile")) $("saveProfile").onclick=saveProfileData;
+  if($("colorPhoto")) $("colorPhoto").onchange=function(e){analyzeColorPhoto(e.target.files[0])};
+  if(location.hash==="#/star") setTimeout(smartWeather,50);
 }
 
 if(photos) photos.addEventListener("change",e=>{ addFiles(e.target.files); e.target.value=""; });
@@ -472,6 +513,7 @@ window.openSettings=openSettings;
 window.openItem=openItem;
 window.closeModal=closeModal;
 window.render=render;
+db.settings={...fresh().settings,...(db.settings||{}),profile:{...fresh().settings.profile,...((db.settings&&db.settings.profile)||{})},colorimetry:{...fresh().settings.colorimetry,...((db.settings&&db.settings.colorimetry)||{})},friends:Array.isArray(db.settings?.friends)?db.settings.friends:[],shared:Array.isArray(db.settings?.shared)?db.settings.shared:[]};
 db.items.forEach(item => {
   if(/^\\d[\\d _-]*$/.test(String(item.name || "").trim())){
     item.name = "T-shirt noir imprimé";
