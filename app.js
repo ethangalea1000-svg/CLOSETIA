@@ -337,17 +337,23 @@ function renderBrandResults(results){
 async function searchBrands(){
   var q=(($("brandSearch")||{}).value||"").trim();
   if(q.length<2){renderBrandResults([]);return}
-  var box=$("brandResults"); box.innerHTML="<p class=\"muted\">Recherche des marques…</p>";
+  var box=$("brandResults"); box.innerHTML="<p class="muted">Recherche des marques…</p>";
   try{
-    var r=await fetch("https://world.openfoodfacts.org/cgi/search.pl?search_terms="+encodeURIComponent(q)+"&search_simple=1&action=process&json=1&page_size=100");
+    var url="https://www.wikidata.org/w/api.php?action=wbsearchentities&search="+encodeURIComponent(q)+"&language=fr&uselang=fr&type=item&limit=50&format=json&origin=*";
+    var r=await fetch(url);
     var data=await r.json(), seen={}, out=[];
-    (data.products||[]).forEach(function(x){
-      (String(x.brands||"").split(",")).forEach(function(n){
-        n=n.trim(); if(n && n.toLowerCase().includes(q.toLowerCase()) && !seen[n.toLowerCase()]){seen[n.toLowerCase()]=1;out.push({name:n})}
-      });
+    (data.search||[]).forEach(function(x){
+      var n=(x.label||"").trim();
+      var d=(x.description||"").toLowerCase();
+      var text=(n+" "+d).toLowerCase();
+      if(n && !seen[n.toLowerCase()] && (n.toLowerCase().includes(q.toLowerCase()) || d.includes("marque") || d.includes("fashion") || d.includes("vêtement") || d.includes("clothing") || d.includes("mode") || d.includes("sport") || d.includes("cosmétique"))){
+        seen[n.toLowerCase()]=1; out.push({name:n});
+      }
     });
     renderBrandResults(out);
-  }catch(e){box.innerHTML="<p class=\"muted\">Catalogue temporairement indisponible. Tu peux ajouter la marque manuellement.</p>"}
+  }catch(e){
+    box.innerHTML="<p class="muted">Recherche indisponible. Tu peux ajouter la marque manuellement.</p>";
+  }
 }
 function toggleBrand(name){
   var p=db.settings.profile||{}; p.brands=p.brands||[];
