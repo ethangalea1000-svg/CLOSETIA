@@ -60,6 +60,7 @@ const CLOUD_API = "https://cloud-manager-gateway.ethan-galea1000.workers.dev";
 const CLOUD_TOKEN_KEY = "closetia.cloud.session";
 let cloudSyncTimer = null;
 let cloudSyncRunning = false;
+let cloudReady = false;
 
 function cloudToken(){ try{return sessionStorage.getItem(CLOUD_TOKEN_KEY)||"";}catch(e){return "";} }
 
@@ -75,7 +76,7 @@ async function cloudRequest(path, options={}){
 }
 
 function queueCloudSync(){
-  if(!cloudToken()) return;
+  if(!cloudToken() || !cloudReady) return;
   clearTimeout(cloudSyncTimer);
   cloudSyncTimer=setTimeout(()=>syncCloudNow().catch(e=>{
     console.warn("CLOSETIA Cloud sync:",e);
@@ -84,7 +85,7 @@ function queueCloudSync(){
 }
 
 async function syncCloudNow(){
-  if(!cloudToken() || cloudSyncRunning) return;
+  if(!cloudToken() || !cloudReady || cloudSyncRunning) return;
   cloudSyncRunning=true;
   try{
     await cloudRequest("/api/closetia/preferences/main",{method:"PUT",body:JSON.stringify({data:db})});
@@ -123,8 +124,10 @@ async function connectCloudflare(){
       db.settings={...fresh().settings,...(db.settings||{}),profile:{...fresh().settings.profile,...((db.settings&&db.settings.profile)||{})},colorimetry:{...fresh().settings.colorimetry,...((db.settings&&db.settings.colorimetry)||{})},friends:Array.isArray(db.settings?.friends)?db.settings.friends:[],shared:Array.isArray(db.settings?.shared)?db.settings.shared:[]};
       localStorage.setItem(KEY,JSON.stringify(db));
       render();
+      cloudReady=true;
       showCloudStatus("Données Cloudflare chargées et synchronisées.",false);
     }else{
+      cloudReady=true;
       await syncCloudNow();
     }
     closeModal();
@@ -137,6 +140,7 @@ async function connectCloudflare(){
 }
 
 function disconnectCloudflare(){
+  cloudReady=false;
   try{sessionStorage.removeItem(CLOUD_TOKEN_KEY);}catch(e){}
   showCloudStatus("Déconnecté. Les données restent enregistrées sur cet appareil.",false);
 }
