@@ -16,3 +16,16 @@
 .monthhead h2{text-align:center;flex:1}
 .day.holiday{border-color:#d97706;background:#fff7ed}
 .day.holiday small{color:#9a3412}
+
+/* Always-visible Cloudflare connection indicator */
+.cloud-indicator{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex-shrink:0;border:1px solid var(--line);border-radius:999px;padding:8px 11px;background:#f2f4f7;color:#475467;font:600 12px/1.2 inherit;white-space:nowrap;cursor:pointer}
+.cloud-indicator .cloud-dot{width:8px;height:8px;border-radius:50%;background:#98a2b3;box-shadow:0 0 0 3px #e4e7ec}
+.cloud-indicator.connected{background:#ecfdf3;border-color:#abefc6;color:#067647}
+.cloud-indicator.connected .cloud-dot{background:#12b76a;box-shadow:0 0 0 3px #d1fadf}
+.cloud-indicator.checking{background:#fffaeb;border-color:#fedf89;color:#93370d}
+.cloud-indicator.checking .cloud-dot{background:#f79009;box-shadow:0 0 0 3px #fef0c7}
+.cloud-indicator.warning{background:#fef3f2;border-color:#fecdca;color:#b42318}
+.cloud-indicator.warning .cloud-dot{background:#f04438;box-shadow:0 0 0 3px #fee4e2}
+.cloud-indicator.local{background:#f2f4f7;border-color:#e4e7ec;color:#475467}
+@media(max-width:760px){.topbar{gap:8px;padding:0 12px}.topbar nav{gap:12px}.cloud-indicator{padding:7px 9px;font-size:11px}.topbar .logo{flex-shrink:0}}
+@media(max-width:480px){.cloud-indicator{max-width:118px;white-space:normal;text-align:left;line-height:1.15}.topbar{gap:6px}}

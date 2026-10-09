@@ -103,9 +103,47 @@ async function syncCloudNow(){
   }finally{cloudSyncRunning=false;}
 }
 
+function setCloudIndicator(state,label,title){
+  const el=$("cloudIndicator");
+  if(!el) return;
+  el.className="cloud-indicator "+state;
+  el.innerHTML='<span class="cloud-dot" aria-hidden="true"></span><span>'+label+'</span>';
+  el.title=title||label;
+  el.setAttribute("aria-label",title||label);
+}
 function showCloudStatus(message,isError){
   const el=$("cloudStatus");
   if(el){el.textContent=message;el.style.color=isError?"#b45309":"";}
+  if(isError || /indisponible|en attente|reconnect/i.test(message)){
+    setCloudIndicator("warning","Cloud à vérifier",message);
+  }else if(/^Déconnecté/i.test(message) || /Non connecté/i.test(message)){
+    setCloudIndicator("local","Mode local","Cloudflare déconnecté. Les données restent sur cet appareil.");
+  }else if(/vérification|vérifie/i.test(message)){
+    setCloudIndicator("checking","Vérification…",message);
+  }else if(/Synchronisé|Données Cloudflare chargées|Connecté à Cloudflare/i.test(message)){
+    setCloudIndicator("connected","Cloud connecté",message);
+  }
+}
+async function checkCloudSession(){
+  if(!cloudToken()){
+    cloudReady=false;
+    setCloudIndicator("local","Mode local","Cloudflare non connecté sur cet appareil.");
+    return;
+  }
+  setCloudIndicator("checking","Vérification…","Vérification de la session Cloudflare.");
+  try{
+    await cloudRequest("/api/closetia/preferences/main",{method:"GET"});
+    cloudReady=true;
+    showCloudStatus("Connecté à Cloudflare D1.",false);
+  }catch(e){
+    cloudReady=false;
+    if(/401|403|connexion requise|jeton|token|authentification/i.test(e.message)){
+      try{localStorage.removeItem(CLOUD_TOKEN_KEY);sessionStorage.removeItem(CLOUD_TOKEN_KEY);}catch(ignore){}
+      showCloudStatus("Session expirée. Reconnecte-toi à Cloudflare.",true);
+    }else{
+      showCloudStatus("Cloudflare temporairement injoignable. Vérifie la connexion.",true);
+    }
+  }
 }
 
 async function connectCloudflare(){
@@ -388,7 +426,7 @@ function openSettings(){
       <p class="muted">Les données sont conservées sur cet appareil. Tu peux aussi activer la synchronisation Cloudflare D1.</p>
       <div class="card" style="margin:12px 0;padding:14px">
         <h3>Synchronisation Cloudflare</h3>
-        <p id="cloudStatus" class="muted">${cloudToken() ? "Session Cloudflare active dans cet onglet." : "Non connecté. Les données restent locales."}</p>
+        <p id="cloudStatus" class="muted">${cloudToken() ? "Session enregistrée. Vérification de la connexion…" : "Non connecté. Les données restent locales."}</p>
         <div class="actions">
           <button class="primary" id="connectCloud">Connecter / synchroniser</button>
           <button class="ghost" id="disconnectCloud">Déconnecter</button>
@@ -745,4 +783,5 @@ db.items.forEach(item => {
 save(false);
 if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 render();
+checkCloudSession();
 })();
