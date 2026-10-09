@@ -45,3 +45,11 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .store-link:hover,.store-link:focus-visible{border-color:var(--purple);background:var(--soft)}
 .store-link-all{background:var(--accent);color:#fff;border-color:var(--accent)}
 .home-weather{min-height:70px}
+
+/* CLOSETIA profile preferences and celebrity looks */
+.celebrity-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:18px}
+.celebrity-card{min-width:0}
+.celebrity-card h2{margin:8px 0 4px;font-size:1.15rem}
+.celebrity-avatar{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;font-weight:800;font-size:1.1rem;background:var(--soft);color:var(--purple);border:1px solid var(--line)}
+.profile-card .choices{margin-bottom:18px}
+.profile-card h2{margin-top:22px}
