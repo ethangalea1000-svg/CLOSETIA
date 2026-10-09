@@ -717,35 +717,56 @@ function celebrityLooksPage(){
 function loadCelebrityLooks(){
   if(location.hash!=="#/stars")return;
   var celebs=celebrityData();
+  function normalize(s){return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9$]+/g," ").trim()}
+  function safeImage(url){return typeof url==="string"&&/^https:\/\//i.test(url)&&!(/\.pdf(?:[?#]|$)/i.test(url))}
+  function articleImage(item){
+    var im=item&&item.image;
+    if(typeof im==="string")return im;
+    return im&&(im.url||im.src||im.thumbnail||im.href)||item.imageUrl||item.image_url||item.thumbnail||"";
+  }
+  function renderNews(box,items,c){
+    var nameKey=normalize(c.name);
+    var relevant=(items||[]).filter(function(item){
+      var title=String(item.title||"");
+      var summary=String(item.summary||item.description||"");
+      var people=Array.isArray(item.people)?item.people.map(function(p){return typeof p==="string"?p:(p.name||p.title||"")}).join(" "):"";
+      var text=normalize(title+" "+summary+" "+people);
+      var containsName=text.includes(nameKey);
+      var fashion=/fashion|style|outfit|red carpet|street style|wardrobe|dress|designer|clothing|look|appearance|mode|tenue|vestiaire|robe|couture|fashion week/.test(text);
+      var date=new Date(item.published||item.publishedAt||item.date||item.updated||0);
+      var recent=!isNaN(date.getTime())&&date.getTime()>Date.now()-1000*60*60*24*120;
+      return containsName&&fashion&&recent&&item.url;
+    }).slice(0,3);
+    if(!relevant.length){box.innerHTML='<p class="muted">Aucun article mode récent et suffisamment pertinent trouvé. Réessaie plus tard.</p>';return}
+    box.innerHTML=relevant.map(function(item){
+      var date=new Date(item.published||item.publishedAt||item.date||item.updated||0);
+      var dateText=!isNaN(date.getTime())&&date.getTime()>0?date.toLocaleDateString("fr-FR",{day:"numeric",month:"short",year:"numeric"}):"Date non fournie";
+      var source=item.attribution&&item.attribution.publisher||item.source&&item.source.name||item.publisher||"Source de l’article";
+      var image=articleImage(item);
+      return '<article class="celebrity-news-item">'+(safeImage(image)?'<img class="celebrity-news-image" loading="lazy" src="'+esc(image)+'" alt="Illustration de l’article" referrerpolicy="no-referrer">':'')+'<p>'+esc(item.title||"Actualité mode")+'</p><small>'+esc(source)+' · '+esc(dateText)+'</small><p><a href="'+esc(item.url)+'" target="_blank" rel="noopener noreferrer">Lire l’article ↗</a></p></article>';
+    }).join("");
+  }
   celebs.forEach(function(c,i){
     var photosBox=$("celebrity-photos-"+i),newsBox=$("celebrity-news-"+i);
     if(photosBox){
-      var imageQuery=c.name+" fashion outfit";
-      var imageUrl="https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch="+encodeURIComponent(imageQuery)+"&gsrnamespace=6&gsrlimit=4&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=520&format=json&origin=*";
-      fetch(imageUrl).then(function(r){if(!r.ok)throw new Error("Photos indisponibles");return r.json()}).then(function(data){
-        var pages=Object.values((data.query&&data.query.pages)||{}).filter(function(p){return p.imageinfo&&p.imageinfo[0]&&p.imageinfo[0].thumburl});
-        if(!pages.length)throw new Error("Aucune photo trouvée");
-        photosBox.innerHTML="<div class=\"celebrity-photo-grid\">"+pages.slice(0,3).map(function(p){
-          var info=p.imageinfo[0],meta=info.extmetadata||{},artist=(meta.Artist&&meta.Artist.value||"Crédit photo Wikimedia Commons").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&#160;|&nbsp;/g," ").replace(/\s+/g," ").trim();
-          var license=(meta.LicenseShortName&&meta.LicenseShortName.value||"Licence à vérifier").replace(/<[^>]*>/g,"").trim();
-          return "<figure class=\"celebrity-photo\"><img loading=\"lazy\" src=\""+esc(info.thumburl)+"\" alt=\"Photo de "+esc(c.name)+" — "+esc(p.title.replace(/^File:/,"").replace(/_/g," "))+"\" referrerpolicy=\"no-referrer\"><figcaption>"+esc(artist.slice(0,100))+" · "+esc(license)+"</figcaption></figure>";
-        }).join("")+"</div><p class=\"celebrity-source-note\">Photos intégrées depuis Wikimedia Commons.</p>";
-      }).catch(function(){photosBox.innerHTML="<p class=\"muted\">Aucune photo intégrable trouvée pour le moment.</p>"});
+      var slug=encodeURIComponent(c.name.replace(/ /g,"_"));
+      fetch("https://en.wikipedia.org/api/rest_v1/page/summary/"+slug,{headers:{"Accept":"application/json"}})
+        .then(function(r){if(!r.ok)throw new Error("Portrait indisponible");return r.json()})
+        .then(function(data){
+          var thumb=data.thumbnail&&data.thumbnail.source;
+          if(!safeImage(thumb))throw new Error("Aucun portrait adapté");
+          photosBox.innerHTML='<figure class="celebrity-photo celebrity-profile-photo"><img loading="lazy" src="'+esc(thumb)+'" alt="Portrait de '+esc(c.name)+'" referrerpolicy="no-referrer"><figcaption>Portrait de référence · <a href="'+esc(data.content_urls&&data.content_urls.desktop&&data.content_urls.desktop.page||"https://en.wikipedia.org/wiki/"+slug)+'" target="_blank" rel="noopener noreferrer">Source encyclopédique ↗</a></figcaption></figure><p class="celebrity-source-note">Portrait de la personne, pas nécessairement une tenue récente.</p>';
+        }).catch(function(){photosBox.innerHTML='<p class="muted">Portrait indisponible pour le moment.</p>'});
     }
     if(newsBox){
-      var q=c.name+" fashion outfit style";
-      var rss="https://news.google.com/rss/search?q="+encodeURIComponent(q)+"&hl=fr&gl=FR&ceid=FR:fr";
-      var proxy="https://api.rss2json.com/v1/api.json?rss_url="+encodeURIComponent(rss);
-      fetch(proxy).then(function(r){if(!r.ok)throw new Error("Actualités indisponibles");return r.json()}).then(function(data){
-        var items=(data.items||[]).slice(0,3);
-        if(!items.length)throw new Error("Aucune actualité");
-        newsBox.innerHTML=items.map(function(item){
-          var date=item.pubDate?new Date(item.pubDate):null;
-          var dateText=date&&!isNaN(date.getTime())?date.toLocaleDateString("fr-FR",{day:"numeric",month:"short",year:"numeric"}):"Date non fournie";
-          var source=(item.author||item.source||"Presse en ligne").replace(/<[^>]*>/g,"").trim();
-          return "<article class=\"celebrity-news-item\"><p>"+esc(item.title||"Actualité mode")+"</p><small>"+esc(source)+" · "+esc(dateText)+"</small></article>";
-        }).join("");
-      }).catch(function(){newsBox.innerHTML="<p class=\"muted\">Les actualités ne sont pas disponibles pour le moment. Réessaie plus tard.</p>"});
+      var since=new Date(Date.now()-1000*60*60*24*120).toISOString();
+      var url="https://celebrity.land/api/v1/articles?lang=en&limit=30&since="+encodeURIComponent(since)+"&q="+encodeURIComponent(c.name);
+      fetch(url,{headers:{"Accept":"application/json"}})
+        .then(function(r){if(!r.ok)throw new Error("Actualités indisponibles");return r.json()})
+        .then(function(data){
+          var items=Array.isArray(data)?data:(data.articles||data.data||data.results||[]);
+          renderNews(newsBox,items,c);
+        }).catch(function(){newsBox.innerHTML='<p class="muted">Le flux d’actualités est momentanément indisponible. Les portraits et le reste de CLOSETIA restent accessibles.</p>'});
     }
   });
 }
