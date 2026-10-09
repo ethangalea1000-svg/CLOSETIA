@@ -527,6 +527,8 @@ function saveProfileData(){
   p.budget=Number(($("profileBudget")||{}).value||0); p.weather=Boolean(($("profileWeather")||{}).checked);
   p.styles=Array.from(document.querySelectorAll("[data-pref=style]:checked")).map(function(x){return x.value});
   p.models=Array.from(document.querySelectorAll("[data-pref=model]:checked")).map(function(x){return x.value});
+  p.impressions=Array.from(document.querySelectorAll("[data-pref=impression]:checked")).map(function(x){return x.value});
+  p.patterns=Array.from(document.querySelectorAll("[data-pref=pattern]:checked")).map(function(x){return x.value});
   p.brands=Array.isArray(p.brands)?p.brands:[];
   db.settings.profile=p; save(); alert("Profil enregistré.");
 }
@@ -583,8 +585,10 @@ function addManualBrand(){
 }
 function profilePage(){
   var p=db.settings.profile||fresh().settings.profile, styles=["Minimaliste","Streetwear","Casual","Sport","Élégant","Vintage","Créatif","Classique"], models=["T-shirt","Chemise","Pull","Sweat","Jean","Pantalon","Short","Veste","Manteau","Robe","Sneakers","Accessoire"];
-  function checks(a,k){return a.map(function(x){return "<label class=\"choice\"><input type=\"checkbox\" data-pref=\""+k+"\" value=\""+esc(x)+"\" "+((p[k+"s"]||[]).includes(x)?"checked":"")+"><span>"+esc(x)+"</span></label>"}).join("")}
-  return "<div class=\"section\"><span class=\"eyebrow\">PROFIL DE STYLE</span><h1>Mes goûts</h1><p class=\"muted\">Questionnaire de style, marques, modèles, budget et couleurs. Aucune analyse corporelle.</p><div class=\"card profile-card\"><label>Nom affiché<input id=\"profileName\" value=\""+esc(p.name)+"\" placeholder=\"Ex. Ethan\"></label><label>Ville pour la météo<input id=\"profileCity\" value=\""+esc(p.city)+"\" placeholder=\"Ex. Saint-Rémy-de-Provence\"></label><label>Budget maximum (€)<input id=\"profileBudget\" type=\"number\" min=\"0\" value=\""+Number(p.budget||0)+"\"></label><label class=\"check\"><input id=\"profileWeather\" type=\"checkbox\" "+(p.weather!==false?"checked":"")+"> Adapter les recommandations à la météo</label><h2>Styles</h2><div class=\"choices\">"+checks(styles,"style")+"</div><h2>Modèles préférés</h2><div class=\"choices\">"+checks(models,"model")+"</div>"+brandCatalog()+"<h2>Couleurs favorites</h2><div class=\"actions\">"+COLORS.filter(function(x){return x!=="Autre"}).map(function(c){return "<button class=\"colorchoice "+(p.colors&&p.colors.includes(c)?"selected":"")+"\" data-action=\"prefColor\" data-color=\""+c+"\"><i class=\"swatch\" style=\"background:"+HEX[c]+"\"></i>"+c+"</button>"}).join("")+"</div><button class=\"primary\" id=\"saveProfile\">Enregistrer mon profil</button></div></div>";
+  var impressions=["Discret","Élégant","Sportif","Créatif","Décontracté","Sérieux","Confiant","Original","Classique","Streetwear"];
+  var patterns=["Uni","Rayures","Carreaux","Fleurs","Léopard / animalier","Camouflage","Logo","Dessin / illustration","Message / slogan","Géométrique","Tie-dye","Imprimé abstrait"];
+  function checks(a,k,selected){return a.map(function(x){return "<label class=\"choice\"><input type=\"checkbox\" data-pref=\""+k+"\" value=\""+esc(x)+"\" "+(selected.includes(x)?"checked":"")+"><span>"+esc(x)+"</span></label>"}).join("")}
+  return "<div class=\"section\"><span class=\"eyebrow\">PROFIL DE STYLE</span><h1>Mes goûts</h1><p class=\"muted\">Personnalise tes tenues selon l’image que tu souhaites exprimer et les imprimés que tu aimes. Aucune analyse corporelle.</p><div class=\"card profile-card\"><label>Nom affiché<input id=\"profileName\" value=\""+esc(p.name)+"\" placeholder=\"Nom affiché\"></label><label>Ville pour la météo<input id=\"profileCity\" value=\""+esc(p.city)+"\" placeholder=\"Ex. Saint-Rémy-de-Provence\"></label><label>Budget maximum (€)<input id=\"profileBudget\" type=\"number\" min=\"0\" value=\""+Number(p.budget||0)+"\"></label><label class=\"check\"><input id=\"profileWeather\" type=\"checkbox\" "+(p.weather!==false?"checked":"")+"> Adapter les recommandations à la météo</label><h2>Quelle impression veux-tu donner ?</h2><p class=\"muted\">Choisis une ou plusieurs intentions pour guider les idées de tenues.</p><div class=\"choices\">"+checks(impressions,"impression",Array.isArray(p.impressions)?p.impressions:[])+"</div><h2>Quels motifs / imprimés préfères-tu ?</h2><p class=\"muted\">Tu peux sélectionner plusieurs motifs.</p><div class=\"choices\">"+checks(patterns,"pattern",Array.isArray(p.patterns)?p.patterns:[])+"</div><h2>Styles</h2><div class=\"choices\">"+checks(styles,"style",Array.isArray(p.styles)?p.styles:[])+"</div><h2>Modèles préférés</h2><div class=\"choices\">"+checks(models,"model",Array.isArray(p.models)?p.models:[])+"</div>"+brandCatalog()+"<h2>Couleurs favorites</h2><div class=\"actions\">"+COLORS.filter(function(c){return c!=="Autre"}).map(function(c){return "<button class=\"colorchoice "+(p.colors&&p.colors.includes(c)?"selected":"")+"\" data-action=\"prefColor\" data-color=\""+c+"\"><i class=\"swatch\" style=\"background:"+HEX[c]+"\"></i>"+c+"</button>"}).join("")+"</div><button class=\"primary\" id=\"saveProfile\">Enregistrer mon profil</button></div></div>";
 }
 function colorimetryPage(){
   var c=db.settings.colorimetry||{palette:[],status:"Non définie",selectedColors:[]};
@@ -651,8 +655,28 @@ function shoppingSuggestions(){
   }).join("")+"</div></div>";
 }
 function starPage(){
-  var p=db.settings.profile||{}, list=db.items.slice().sort(function(a,b){var sa=(b.favorite?5:0)+(p.colors&&p.colors.includes(b.color)?5:0)+b.wears;var sb=(a.favorite?5:0)+(p.colors&&p.colors.includes(a.color)?5:0)+a.wears;return sa-sb}).slice(0,8);
+  var p=db.settings.profile||{}, list=db.items.slice().sort(function(a,b){var sa=(b.favorite?5:0)+(p.colors&&p.colors.includes(b.color)?5:0)+b.wears+(p.patterns&&p.patterns.some(function(v){return String(b.notes||"").toLowerCase().includes(v.toLowerCase())})?2:0);var sb=(a.favorite?5:0)+(p.colors&&p.colors.includes(a.color)?5:0)+a.wears+(p.patterns&&p.patterns.some(function(v){return String(a.notes||"").toLowerCase().includes(v.toLowerCase())})?2:0);return sa-sb}).slice(0,8);
   return "<div class=\"section\"><span class=\"eyebrow\">RECOMMANDATIONS</span><h1>⭐ Outfit Star</h1><div id=\"weatherBox\" class=\"card weatherbox\">Chargement de la météo…</div><p class=\"muted\">Pièces favorisées selon tes goûts, tes couleurs, tes favoris et ton historique.</p><div class=\"grid\">"+(list.length?list.map(itemCard).join(""):"<div class=\"empty\">Ajoute des vêtements pour obtenir des recommandations.</div>")+"</div><div style=\"margin-top:24px\">"+shoppingSuggestions()+"</div></div>";
+}
+function celebrityLooksPage(){
+  var celebs=[
+    {name:"Zendaya",source:"Vogue"},
+    {name:"Timothée Chalamet",source:"GQ"},
+    {name:"Jenna Ortega",source:"Vogue"},
+    {name:"Dua Lipa",source:"Vogue"},
+    {name:"Sabrina Carpenter",source:"People"},
+    {name:"A$AP Rocky",source:"GQ"},
+    {name:"Bella Hadid",source:"Vogue"},
+    {name:"Ryan Gosling",source:"GQ"},
+    {name:"Taylor Swift",source:"Vogue"},
+    {name:"Pedro Pascal",source:"GQ"},
+    {name:"Anya Taylor-Joy",source:"Vogue"},
+    {name:"Bad Bunny",source:"GQ"}
+  ];
+  return "<div class=\"section\"><span class=\"eyebrow\">INSPIRATION MODE</span><h1>Looks récents des stars</h1><p class=\"muted\">Retrouve les dernières apparitions publiques de plusieurs célébrités. Les liens ouvrent des recherches actualisées : la date et la tenue dépendent des articles disponibles, ce n’est pas un flux garanti en temps réel.</p><div class=\"celebrity-grid\">"+celebs.map(function(c){
+    var q=c.name+" latest outfit fashion street style red carpet";
+    return "<article class=\"card celebrity-card\"><div class=\"celebrity-avatar\" aria-hidden=\"true\">"+esc(c.name.split(" ").map(function(x){return x.charAt(0)}).join("").slice(0,2))+"</div><h2>"+esc(c.name)+"</h2><p class=\"muted\">Tenues récentes · "+esc(c.source)+" et autres médias</p><div class=\"store-links\"><a class=\"store-link\" href=\"https://www.google.com/search?tbm=isch&q="+encodeURIComponent(q)+"\" target=\"_blank\" rel=\"noopener noreferrer\">Voir les photos ↗</a><a class=\"store-link store-link-all\" href=\"https://news.google.com/search?q="+encodeURIComponent(q)+"&hl=fr&gl=FR&ceid=FR%3Afr\" target=\"_blank\" rel=\"noopener noreferrer\">Dernières actualités ↗</a></div></article>";
+  }).join("")+"</div><p class=\"muted\">Vérifie la date et le contexte des articles : une recherche d’images peut aussi afficher des looks plus anciens.</p></div>";
 }
 function friendsPage(){
   var fs=db.settings.friends||[]; return "<div class=\"section\"><span class=\"eyebrow\">SOCIAL</span><h1>Amis</h1><div class=\"card\"><p class=\"muted\">Les amis sont préparés localement. Le partage en ligne sera branché sur D1/R2 ensuite.</p><div class=\"toolbar\"><input id=\"friendName\" placeholder=\"Nom de l’ami\"><button class=\"primary\" data-action=\"addFriend\">Ajouter</button></div></div><div class=\"grid\">"+(fs.length?fs.map(function(x,i){return "<div class=\"card\"><h3>👤 "+esc(x)+"</h3><button class=\"danger\" data-action=\"removeFriend\" data-id=\""+i+"\">Supprimer</button></div>"}).join(""):"<div class=\"empty\">Aucun ami.</div>")+"</div></div>";
@@ -832,7 +856,7 @@ function render(){
   const selectionEnd=active&&typeof active.selectionEnd==="number"?active.selectionEnd:null;
   document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("active",a.getAttribute("href")==="#/"+page));
   try{
-    app.innerHTML=page==="dressing"?dressing():page==="tenues"?outfits():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():home();
+    app.innerHTML=page==="dressing"?dressing():page==="tenues"?outfits():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="stars"?celebrityLooksPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():home();
     bindPage();
     if(activeId){
       const replacement=$(activeId);
