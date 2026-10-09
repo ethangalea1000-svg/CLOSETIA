@@ -549,7 +549,7 @@ function loadHolidays(year){
     .then(function(rows){
       var map={};rows.forEach(function(h){map[h.date]=h.localName||h.name});
       holidayCache[year]=map;
-      if(location.hash==="#/calendrier"&&new Date().getFullYear()+calendarOffset===year)render();
+      var shown=new Date(new Date().getFullYear(),new Date().getMonth()+calendarOffset,1);if(location.hash==="#/calendrier"&&shown.getFullYear()===year)render();
     }).catch(function(){holidayCache[year]={};});
 }
 
