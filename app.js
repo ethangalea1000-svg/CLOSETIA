@@ -555,25 +555,40 @@ async function searchBrands(){
   var input=$("brandSearch"),q=(input&&input.value||"").trim(),box=$("brandResults");
   if(!box)return;
   if(q.length<2){box.innerHTML='<p class="muted">Saisis au moins 2 caractères.</p>';return}
-  box.innerHTML='<p class="muted">Recherche de marques dans plusieurs langues…</p>';
+  box.innerHTML='<p class="muted">Recherche de marques de vêtements et de chaussures…</p>';
   try{
+    var curated=[
+      "Adidas","A.P.C.","ASOS","Balenciaga","Bershka","Carhartt","Celio","Chanel","Converse","Decathlon","Dior","Diesel","Foot Locker","Gant","Gap","Gucci","H&M","Hermès","Jules","Jordan","Kiabi","Lacoste","Le Coq Sportif","Levi's","Louis Vuitton","Mango","New Balance","Nike","Puma","Pull&Bear","Ralph Lauren","Reebok","Shein","Uniqlo","Vans","Zara","Zalando"
+    ];
+    var term=q.toLocaleLowerCase();
+    var known=curated.filter(function(n){return n.toLocaleLowerCase().includes(term)}).map(function(n){return {name:n,description:"Marque de mode ou de vêtements/chaussures"}});
     var queries=[
       "https://www.wikidata.org/w/api.php?action=wbsearchentities&search="+encodeURIComponent(q)+"&language=fr&uselang=fr&type=item&limit=50&format=json&origin=*",
       "https://www.wikidata.org/w/api.php?action=wbsearchentities&search="+encodeURIComponent(q)+"&language=en&uselang=en&type=item&limit=50&format=json&origin=*"
     ];
     var responses=await Promise.all(queries.map(function(url){return fetch(url).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json()})}));
     var seen={},out=[];
+    known.forEach(function(x){seen[x.name.toLocaleLowerCase()]=true;out.push(x)});
+    var fashionTerms=/fashion|clothing|clothes|apparel|garment|footwear|shoe brand|sportswear|fashion house|fashion retailer|clothing brand|clothing company|fashion brand|designer label|marque de vêtements|marque de mode|vêtements|habillement|chaussures|prêt-à-porter|mode vestimentaire|fabricant de vêtements|enseigne d'habillement|retailer of clothing|clothing retailer|sportswear brand/i;
     responses.forEach(function(data){(data.search||[]).forEach(function(x){
-      var n=(x.label||"").trim(),d=(x.description||"").toLowerCase();
-      var label=n.toLowerCase(),term=q.toLowerCase();
-      if(n&&!seen[label]&&(label.includes(term)||/brand|fashion|clothing|apparel|garment|marque|vêtement|mode|sportswear|luxury|designer|footwear|retail|cosmetic|manufacturer|fashion house|fashion brand|entreprise de vêtements/.test(d))){
-        seen[label]=1;out.push({name:n,description:x.description||""});
+      var n=(x.label||"").trim(),d=x.description||"";
+      var key=n.toLocaleLowerCase();
+      if(n&&!seen[key]&&fashionTerms.test(d)){
+        seen[key]=true;out.push({name:n,description:d});
       }
     })});
-    out.sort(function(a,b){return (a.name.toLowerCase().startsWith(q.toLowerCase())?-1:0)-(b.name.toLowerCase().startsWith(q.toLowerCase())?-1:0)||a.name.localeCompare(b.name)});
+    out.sort(function(a,b){
+      var ap=a.name.toLocaleLowerCase().startsWith(term)?0:1;
+      var bp=b.name.toLocaleLowerCase().startsWith(term)?0:1;
+      return ap-bp||a.name.localeCompare(b.name);
+    });
     renderBrandResults(out);
-    if(!out.length)box.innerHTML='<p class="muted">Aucun résultat assez fiable. Essaie le nom en anglais ou ajoute la marque manuellement.</p>';
-  }catch(e){box.innerHTML='<p class="muted">La recherche en ligne est indisponible. Tu peux ajouter la marque manuellement.</p>'}
+    if(!out.length)box.innerHTML='<p class="muted">Aucune marque de vêtements fiable trouvée. Essaie un nom plus précis ou ajoute la marque manuellement.</p>';
+  }catch(e){
+    var fallback=curated.filter(function(n){return n.toLocaleLowerCase().includes(term)}).map(function(x){return {name:x,description:"Marque de mode ou de vêtements/chaussures"}});
+    renderBrandResults(fallback);
+    if(!fallback.length)box.innerHTML='<p class="muted">Recherche en ligne indisponible ou aucun résultat fiable. Tu peux ajouter la marque manuellement.</p>';
+  }
 }
 function toggleBrand(name){
   var p=db.settings.profile||{}; p.brands=p.brands||[];
