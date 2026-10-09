@@ -223,28 +223,29 @@ function markWorn(itemId){
 
 function generateOutfit(){
   const occasion=$("genOcc") ? $("genOcc").value : "Tous les jours";
-  const pool=db.items.filter(x=>occasion==="Tous les jours" || x.occasion===occasion || x.occasion==="Tous les jours");
-  if(pool.length<2){
-    alert("Ajoute au moins deux vêtements compatibles.");
-    return;
+  const profile=db.settings.profile||{};
+  const month=new Date().getMonth();
+  const season=month>=2&&month<=4?"Printemps":month>=5&&month<=7?"Été":month>=8&&month<=10?"Automne":"Hiver";
+  const pool=db.items.filter(x=>occasion==="Tous les jours"||x.occasion===occasion||x.occasion==="Tous les jours");
+  if(pool.length<2){alert("Ajoute au moins deux vêtements compatibles.");return}
+  function score(item){
+    let n=Math.random()*2;
+    if(item.favorite)n+=2;
+    if(profile.colors&&profile.colors.includes(item.color))n+=3;
+    if(item.season===season||item.season==="Toute l'année")n+=2;
+    if(item.occasion===occasion)n+=2;
+    if(profile.models&&profile.models.some(m=>String(item.name||"").toLowerCase().includes(m.toLowerCase())))n+=1;
+    if(item.wears>0)n+=Math.min(item.wears,5)*.15;
+    return n;
   }
-  const pick=list=>list[Math.floor(Math.random()*list.length)];
+  function choose(list){return list.slice().sort((a,b)=>score(b)-score(a))[0]}
   const chosen=[];
-  ["Haut","Bas","Chaussures"].forEach(category=>{
-    const candidates=pool.filter(x=>x.category===category);
-    if(candidates.length) chosen.push(pick(candidates));
-  });
+  ["Haut","Bas","Chaussures"].forEach(category=>{const candidates=pool.filter(x=>x.category===category);if(candidates.length)chosen.push(choose(candidates))});
   if(chosen.length<2){
-    pool.slice().sort(()=>Math.random()-0.5).slice(0,Math.min(3,pool.length)).forEach(x=>chosen.push(x));
+    pool.slice().sort((a,b)=>score(b)-score(a)).forEach(x=>{if(chosen.length<Math.min(3,pool.length)&&!chosen.some(y=>y.id===x.id))chosen.push(x)});
   }
   const unique=[...new Map(chosen.map(x=>[x.id,x])).values()];
-  db.outfits.push({
-    id:makeId(),
-    name:"Tenue "+(db.outfits.length+1),
-    occasion,
-    items:unique.map(x=>x.id),
-    date:new Date().toISOString()
-  });
+  db.outfits.push({id:makeId(),name:"Tenue "+(db.outfits.length+1),occasion,items:unique.map(x=>x.id),date:new Date().toISOString(),season});
   save();
 }
 
@@ -345,26 +346,28 @@ function renderBrandResults(results){
   }).join("");
 }
 async function searchBrands(){
-  var q=(($("brandSearch")||{}).value||"").trim();
-  var box=$("brandResults");
+  var input=$("brandSearch"),q=(input&&input.value||"").trim(),box=$("brandResults");
   if(!box)return;
   if(q.length<2){box.innerHTML='<p class="muted">Saisis au moins 2 caractères.</p>';return}
-  box.innerHTML='<p class="muted">Recherche des marques…</p>';
+  box.innerHTML='<p class="muted">Recherche de marques dans plusieurs langues…</p>';
   try{
-    var url="https://www.wikidata.org/w/api.php?action=wbsearchentities&search="+encodeURIComponent(q)+"&language=fr&uselang=fr&type=item&limit=50&format=json&origin=*";
-    var r=await fetch(url);
-    if(!r.ok)throw new Error("HTTP "+r.status);
-    var data=await r.json(), seen={}, out=[];
-    (data.search||[]).forEach(function(x){
-      var n=(x.label||"").trim(), d=(x.description||"").toLowerCase();
-      if(n && !seen[n.toLowerCase()] && (n.toLowerCase().includes(q.toLowerCase()) || /marque|fashion|vêtement|clothing|mode|sport|cosmétique|entreprise|fabricant/.test(d))){
-        seen[n.toLowerCase()]=1; out.push({name:n});
+    var queries=[
+      "https://www.wikidata.org/w/api.php?action=wbsearchentities&search="+encodeURIComponent(q)+"&language=fr&uselang=fr&type=item&limit=50&format=json&origin=*",
+      "https://www.wikidata.org/w/api.php?action=wbsearchentities&search="+encodeURIComponent(q)+"&language=en&uselang=en&type=item&limit=50&format=json&origin=*"
+    ];
+    var responses=await Promise.all(queries.map(function(url){return fetch(url).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json()})}));
+    var seen={},out=[];
+    responses.forEach(function(data){(data.search||[]).forEach(function(x){
+      var n=(x.label||"").trim(),d=(x.description||"").toLowerCase();
+      var label=n.toLowerCase(),term=q.toLowerCase();
+      if(n&&!seen[label]&&(label.includes(term)||/brand|fashion|clothing|apparel|garment|marque|vêtement|mode|sportswear|luxury|designer|footwear|retail|cosmetic|manufacturer|fashion house|fashion brand|entreprise de vêtements/.test(d))){
+        seen[label]=1;out.push({name:n,description:x.description||""});
       }
-    });
+    })});
+    out.sort(function(a,b){return (a.name.toLowerCase().startsWith(q.toLowerCase())?-1:0)-(b.name.toLowerCase().startsWith(q.toLowerCase())?-1:0)||a.name.localeCompare(b.name)});
     renderBrandResults(out);
-  }catch(e){
-    box.innerHTML='<p class="muted">La recherche en ligne est indisponible. Vérifie ta connexion ou ajoute la marque manuellement.</p>';
-  }
+    if(!out.length)box.innerHTML='<p class="muted">Aucun résultat assez fiable. Essaie le nom en anglais ou ajoute la marque manuellement.</p>';
+  }catch(e){box.innerHTML='<p class="muted">La recherche en ligne est indisponible. Tu peux ajouter la marque manuellement.</p>'}
 }
 function toggleBrand(name){
   var p=db.settings.profile||{}; p.brands=p.brands||[];
@@ -517,21 +520,37 @@ function palette(){
     </div>`;
 }
 
+let calendarOffset=0;
+let holidayCache={};
 function calendar(){
   const now=new Date();
-  const y=now.getFullYear(), m=now.getMonth();
-  const first=new Date(y,m,1).getDay();
+  const monthDate=new Date(now.getFullYear(),now.getMonth()+calendarOffset,1);
+  const y=monthDate.getFullYear(),m=monthDate.getMonth();
+  const first=(new Date(y,m,1).getDay()+6)%7;
   const days=new Date(y,m+1,0).getDate();
-  const labels=["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
-  let html=`<div class="section"><span class="eyebrow">PLANIFICATION</span><h1>Calendrier</h1><div class="card"><div class="monthhead"><h2>${now.toLocaleDateString("fr-FR",{month:"long",year:"numeric"})}</h2><span class="muted">Clique sur un jour</span></div><div class="calendar">${labels.map(x=>`<b>${x}</b>`).join("")}`;
-  for(let i=0;i<first;i++) html+="<div></div>";
+  const labels=["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+  const holidays=holidayCache[y]||{};
+  let html=`<div class="section"><span class="eyebrow">PLANIFICATION</span><h1>Calendrier</h1><div class="card"><div class="monthhead"><button data-action="calendarPrev" aria-label="Mois précédent">←</button><h2>${monthDate.toLocaleDateString("fr-FR",{month:"long",year:"numeric"})}</h2><button data-action="calendarNext" aria-label="Mois suivant">→</button></div><p class="muted">Clique sur un jour pour noter une tenue. Les jours fériés français sont signalés lorsqu’ils sont disponibles.</p><div class="calendar">${labels.map(x=>`<b>${x}</b>`).join("")}`;
+  for(let i=0;i<first;i++)html+="<div></div>";
   for(let d=1;d<=days;d++){
     const key=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-    const value=db.calendar[key] || "";
-    const today=d===now.getDate();
-    html+=`<button class="day${today?" today":""}${value?" has":""}" data-action="day" data-day="${key}"><b>${d}</b><small>${esc(value)}</small></button>`;
+    const value=db.calendar[key]||"";
+    const holiday=holidays[key];
+    const today=y===now.getFullYear()&&m===now.getMonth()&&d===now.getDate();
+    html+=`<button class="day${today?" today":""}${value?" has":""}${holiday?" holiday":""}" data-action="day" data-day="${key}" title="${esc(holiday||value||key)}"><b>${d}</b><small>${esc(value||holiday||"")}</small></button>`;
   }
-  return html+"</div></div></div>";
+  html+="</div></div></div>";
+  if(!holidayCache[y])loadHolidays(y);
+  return html;
+}
+function loadHolidays(year){
+  fetch("https://date.nager.at/api/v3/PublicHolidays/"+year+"/FR")
+    .then(function(r){if(!r.ok)throw new Error("jours fériés indisponibles");return r.json()})
+    .then(function(rows){
+      var map={};rows.forEach(function(h){map[h.date]=h.localName||h.name});
+      holidayCache[year]=map;
+      if(location.hash==="#/calendrier"&&new Date().getFullYear()+calendarOffset===year)render();
+    }).catch(function(){holidayCache[year]={};});
 }
 
 function stats(){
@@ -582,7 +601,7 @@ function bindPage(){
       else if(action==="generate") generateOutfit();
       else if(action==="deleteOutfit") deleteOutfit(itemId);
       else if(action==="palette") togglePalette(el.dataset.color); else if(action==="colorHarmony") getColorHarmony();
-      else if(action==="day") setCalendarDay(el.dataset.day);
+      else if(action==="day") setCalendarDay(el.dataset.day); else if(action==="calendarPrev"){calendarOffset--;render()} else if(action==="calendarNext"){calendarOffset++;render()}
       else if(action==="demo") demo(); else if(action==="prefColor") togglePrefColor(el.dataset.color); else if(action==="searchBrands") searchBrands(); else if(action==="toggleBrand") toggleBrand(el.dataset.brand); else if(action==="addManualBrand") addManualBrand(); else if(action==="addFriend") addFriend(); else if(action==="removeFriend") removeFriend(el.dataset.id);
     });
   });
