@@ -10,3 +10,9 @@
 .harmony-swatches>div{display:flex;min-width:0;flex-direction:column;gap:5px;font-size:12px}
 .harmony-swatches i{display:block;height:56px;border-radius:10px;border:1px solid var(--line)}
 .harmony-swatches b{font-size:12px}
+
+/* Calendar navigation and public holidays */
+.monthhead{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.monthhead h2{text-align:center;flex:1}
+.day.holiday{border-color:#d97706;background:#fff7ed}
+.day.holiday small{color:#9a3412}
