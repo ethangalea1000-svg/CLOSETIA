@@ -668,10 +668,25 @@ function shoppingSuggestions(){
   var brands=Array.isArray(p.brands)?p.brands:[];
   var budget=Number(p.budget||0);
   var stores=[{name:"Zalando",domain:"zalando.fr"},{name:"Kiabi",domain:"kiabi.com"},{name:"H&M",domain:"hm.com"},{name:"Decathlon",domain:"decathlon.fr"}];
-  return "<div class=\"card shopping-card\"><span class=\"eyebrow\">IDÉES D’ACHAT</span><h2>Modèles à découvrir</h2><p class=\"muted\">Suggestions basées sur les modèles et marques que tu as choisis. Les liens ouvrent une recherche en magasin : vérifie le prix, la disponibilité, la taille et les conditions avant d’acheter.</p><div class=\"grid\">"+models.slice(0,8).map(function(model){
+  var productPhotos={
+    "t-shirt":"https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=85",
+    "sweat":"https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&w=900&q=85",
+    "jean":"https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=900&q=85",
+    "veste":"https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=900&q=85",
+    "sneakers":"https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=85",
+    "chaussures":"https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=85",
+    "robe":"https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=900&q=85",
+    "sac":"https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=900&q=85"
+  };
+  function photoFor(model){
+    var key=String(model).toLowerCase();
+    var match=Object.keys(productPhotos).find(function(k){return key.includes(k)});
+    return productPhotos[match||"t-shirt"];
+  }
+  return "<div class=\"shopping-card shopping-section\"><span class=\"eyebrow\">IDÉES D’ACHAT</span><h2>Modèles à découvrir</h2><p class=\"muted\">Des visuels d’inspiration sont affichés directement ici. Tu peux aussi consulter les magasins si tu veux comparer les articles, prix et disponibilités.</p><div class=\"shopping-model-grid\">"+models.slice(0,8).map(function(model,i){
     var query=[model,brands[0]||"",budget>0?"moins de "+budget+" euros":""].filter(Boolean).join(" ");
-    return "<article class=\"card\"><h3>"+esc(model)+"</h3><p class=\"muted\">"+(brands.length?"Marque préférée : "+esc(brands[0]):"Style : "+esc((p.styles||[]).join(", ")||"à personnaliser"))+(budget>0?" · budget indicatif : "+budget+" €":"")+"</p><div class=\"store-links\">"+stores.map(function(store){var q="site:"+store.domain+" "+query;return "<a class=\"store-link\" href=\"https://www.google.com/search?q="+encodeURIComponent(q)+"\" target=\"_blank\" rel=\"noopener noreferrer\">Voir sur "+esc(store.name)+" ↗</a>"}).join("")+"<a class=\"store-link store-link-all\" href=\"https://www.google.com/search?tbm=shop&q="+encodeURIComponent(query)+"\" target=\"_blank\" rel=\"noopener noreferrer\">Comparer les magasins ↗</a></div></article>";
-  }).join("")+"</div></div>";
+    return "<article class=\"card shopping-model-card\"><img class=\"shopping-model-image\" loading=\"lazy\" src=\""+esc(photoFor(model))+"\" alt=\"Exemple d’inspiration pour "+esc(model)+"\" onerror=\"this.style.display='none'\"><div class=\"shopping-model-body\"><h3>"+esc(model)+"</h3><p class=\"muted\">"+(brands.length?"Marque préférée : "+esc(brands[0]):"Style : "+esc((p.styles||[]).join(", ")||"à personnaliser"))+(budget>0?" · budget indicatif : "+budget+" €":"")+"</p><div class=\"store-links\">"+stores.map(function(store){var q="site:"+store.domain+" "+query;return "<a class=\"store-link\" href=\"https://www.google.com/search?q="+encodeURIComponent(q)+"\" target=\"_blank\" rel=\"noopener noreferrer\">Voir sur "+esc(store.name)+" ↗</a>"}).join("")+"<a class=\"store-link store-link-all\" href=\"https://www.google.com/search?tbm=shop&q="+encodeURIComponent(query)+"\" target=\"_blank\" rel=\"noopener noreferrer\">Comparer les magasins ↗</a></div></div></article>";
+  }).join("")+"</div><p class=\"muted\">Les photos sont des exemples d’inspiration, pas une garantie que le produit exact est en vente.</p></div>";
 }
 function starPage(){
   var p=db.settings.profile||{}, list=db.items.slice().sort(function(a,b){var sa=(b.favorite?5:0)+(p.colors&&p.colors.includes(b.color)?5:0)+b.wears+(p.patterns&&p.patterns.some(function(v){return String(b.notes||"").toLowerCase().includes(v.toLowerCase())})?2:0);var sb=(a.favorite?5:0)+(p.colors&&p.colors.includes(a.color)?5:0)+a.wears+(p.patterns&&p.patterns.some(function(v){return String(a.notes||"").toLowerCase().includes(v.toLowerCase())})?2:0);return sa-sb}).slice(0,8);
@@ -755,7 +770,20 @@ function smartWeather(){
         var days=(daily.time||[]).map(function(day,i){var date=new Date(day+"T12:00:00");return "<span class=\"weather-day\"><b>"+date.toLocaleDateString("fr-FR",{weekday:"short"})+"</b> "+daily.temperature_2m_min[i]+"–"+daily.temperature_2m_max[i]+"°C · pluie "+(daily.precipitation_probability_max[i]??0)+"%</span>"}).join("");
         box.innerHTML="<b>🌤️ "+esc(x.name)+"</b><span>Maintenant : "+current.temperature_2m+"°C · pluie "+current.rain+" mm · vent "+current.wind_speed_10m+" km/h</span><p>"+esc(advice)+"</p><div class=\"weather-days\">"+days+"</div><small>Données : <a href=\"https://open-meteo.com/\" target=\"_blank\" rel=\"noopener\">Open-Meteo</a></small>";
       });
-    }).catch(function(){box.textContent="Météo indisponible. Vérifie la ville et ta connexion."});
+    }).catch(function(){
+      if(city.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").includes("saint-remy-de-provence")){
+        fetch("https://api.open-meteo.com/v1/forecast?latitude=43.788&longitude=4.831&current=temperature_2m,rain,wind_speed_10m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=3&timezone=Europe%2FParis")
+          .then(function(r){if(!r.ok)throw new Error("Météo indisponible");return r.json()})
+          .then(function(w){
+            var current=w.current||{},daily=w.daily||{};
+            var advice=Number(current.rain)>0||Number(daily.precipitation_probability_max&&daily.precipitation_probability_max[0])>=50?"Prévois une veste imperméable ou un parapluie.":Number(current.temperature_2m)<12?"Une couche chaude peut être utile.":Number(current.temperature_2m)>25?"Privilégie une tenue légère et confortable.":"Conditions plutôt modérées : choisis selon ton confort.";
+            var days=(daily.time||[]).map(function(day,i){return "<span class=\\"weather-day\\"><b>"+new Date(day+"T12:00:00").toLocaleDateString("fr-FR",{weekday:"short"})+"</b> "+daily.temperature_2m_min[i]+"–"+daily.temperature_2m_max[i]+"°C · pluie "+(daily.precipitation_probability_max[i]??0)+"%</span>"}).join("");
+            box.innerHTML="<b>🌤️ Saint-Rémy-de-Provence</b><span>Maintenant : "+current.temperature_2m+"°C · pluie "+current.rain+" mm · vent "+current.wind_speed_10m+" km/h</span><p>"+esc(advice)+"</p><div class=\\"weather-days\\">"+days+"</div><small>Données : Open-Meteo</small>";
+          }).catch(function(){box.innerHTML="Météo temporairement indisponible. Les autres fonctions restent disponibles. <button class=\\"ghost\\" onclick=\\"location.reload()\\">Réessayer</button>"});
+      }else{
+        box.innerHTML="Météo indisponible pour "+esc(city)+". Vérifie le nom de la ville. <button class=\\"ghost\\" onclick=\\"location.reload()\\">Réessayer</button>";
+      }
+    });
 }
 function getColorHarmony(){
   var box=$("harmonyResults");if(!box)return;
