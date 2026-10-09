@@ -37,3 +37,11 @@
 .palette-sample code{font-size:12px;font-weight:800;color:var(--ink)}
 .palette-sample button{font-size:12px;padding:7px 9px}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #7c3aed;outline-offset:2px}
+
+/* Shopping suggestions: readable store links on mobile and desktop */
+.shopping-card .grid{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.store-links{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.store-link{display:inline-flex;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:10px;text-decoration:none;color:var(--ink);font-size:13px;background:#fff}
+.store-link:hover,.store-link:focus-visible{border-color:var(--purple);background:var(--soft)}
+.store-link-all{background:var(--accent);color:#fff;border-color:var(--accent)}
+.home-weather{min-height:70px}
