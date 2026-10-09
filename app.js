@@ -48,7 +48,7 @@ function load(){
       outfits:Array.isArray(x.outfits)?x.outfits:[],
       calendar:x.calendar && typeof x.calendar==="object"?x.calendar:{},
       palette:Array.isArray(x.palette)?x.palette:[],
-      settings:{...fresh().settings,...(x.settings||{}),profile:{...fresh().settings.profile,...((x.settings&&x.settings.profile)||{})}}
+      settings:{...fresh().settings,...(x.settings||{}),profile:{...fresh().settings.profile,...((x.settings&&x.settings.profile)||{})},colorimetry:{...fresh().settings.colorimetry,...((x.settings&&x.settings.colorimetry)||{}),palette:Array.isArray(x.settings&&x.settings.colorimetry&&x.settings.colorimetry.palette)?x.settings.colorimetry.palette:[],selectedColors:Array.isArray(x.settings&&x.settings.colorimetry&&x.settings.colorimetry.selectedColors)?x.settings.colorimetry.selectedColors:[]},friends:Array.isArray(x.settings&&x.settings.friends)?x.settings.friends:[],shared:Array.isArray(x.settings&&x.settings.shared)?x.settings.shared:[]}
     };
   }catch(e){
     console.error("CLOSETIA load error",e);
@@ -60,6 +60,7 @@ const CLOUD_API = "https://cloud-manager-gateway.ethan-galea1000.workers.dev";
 const CLOUD_TOKEN_KEY = "closetia.cloud.session";
 let cloudSyncTimer = null;
 let cloudSyncRunning = false;
+let cloudSyncAgain = false;
 let cloudReady = false;
 let cloudStatusText = cloudToken() ? "Vérification de la connexion Cloudflare…" : cloudTokenStatusInitial();
 let cloudStatusIsError = false;
@@ -98,12 +99,24 @@ function queueCloudSync(){
 }
 
 async function syncCloudNow(){
-  if(!cloudToken() || !cloudReady || cloudSyncRunning) return;
+  if(!cloudToken() || !cloudReady) return;
+  if(cloudSyncRunning){ cloudSyncAgain=true; return; }
   cloudSyncRunning=true;
   try{
-    await cloudRequest("/api/closetia/preferences/main",{method:"PUT",body:JSON.stringify({data:db})});
-    showCloudStatus("Synchronisé avec Cloudflare D1.",false);
-  }finally{cloudSyncRunning=false;}
+    do{
+      cloudSyncAgain=false;
+      const snapshot=JSON.stringify(db);
+      await cloudRequest("/api/closetia/preferences/main",{method:"PUT",body:JSON.stringify({data:JSON.parse(snapshot)})});
+      if(snapshot!==JSON.stringify(db)) cloudSyncAgain=true;
+      else showCloudStatus("Synchronisé avec Cloudflare D1.",false);
+    }while(cloudSyncAgain && cloudToken() && cloudReady);
+  }finally{
+    cloudSyncRunning=false;
+    if(cloudSyncAgain && cloudToken() && cloudReady){
+      cloudSyncAgain=false;
+      queueCloudSync();
+    }
+  }
 }
 
 function setCloudIndicator(state,label,title){
@@ -137,9 +150,34 @@ async function checkCloudSession(){
   }
   setCloudIndicator("checking","Vérification…","Vérification de la session Cloudflare.");
   try{
-    await cloudRequest("/api/closetia/preferences/main",{method:"GET"});
+    const result=await cloudRequest("/api/closetia/preferences/main",{method:"GET"});
+    const candidate=result.record||result.item||result.data;
+    const remote=candidate&&candidate.data&&typeof candidate.data==="object"?candidate.data:
+      candidate&&Array.isArray(candidate.items)?candidate:null;
+    if(remote&&Array.isArray(remote.items)){
+      db={
+        ...fresh(),
+        ...remote,
+        items:remote.items.map(normalize),
+        outfits:Array.isArray(remote.outfits)?remote.outfits:[],
+        calendar:remote.calendar&&typeof remote.calendar==="object"?remote.calendar:{},
+        palette:Array.isArray(remote.palette)?remote.palette:[],
+        settings:{
+          ...fresh().settings,
+          ...(remote.settings||{}),
+          profile:{...fresh().settings.profile,...((remote.settings&&remote.settings.profile)||{})},
+          colorimetry:{...fresh().settings.colorimetry,...((remote.settings&&remote.settings.colorimetry)||{}),palette:Array.isArray(remote.settings&&remote.settings.colorimetry&&remote.settings.colorimetry.palette)?remote.settings.colorimetry.palette:[],selectedColors:Array.isArray(remote.settings&&remote.settings.colorimetry&&remote.settings.colorimetry.selectedColors)?remote.settings.colorimetry.selectedColors:[]},
+          friends:Array.isArray(remote.settings&&remote.settings.friends)?remote.settings.friends:[],
+          shared:Array.isArray(remote.settings&&remote.settings.shared)?remote.settings.shared:[]
+        }
+      };
+      localStorage.setItem(KEY,JSON.stringify(db));
+      render();
+      showCloudStatus("Données Cloudflare chargées et synchronisées.",false);
+    }else{
+      showCloudStatus("Connecté à Cloudflare D1.",false);
+    }
     cloudReady=true;
-    showCloudStatus("Connecté à Cloudflare D1.",false);
   }catch(e){
     cloudReady=false;
     if(/401|403|connexion requise|jeton|token|authentification/i.test(e.message)){
@@ -549,15 +587,57 @@ function profilePage(){
   return "<div class=\"section\"><span class=\"eyebrow\">PROFIL DE STYLE</span><h1>Mes goûts</h1><p class=\"muted\">Questionnaire de style, marques, modèles, budget et couleurs. Aucune analyse corporelle.</p><div class=\"card profile-card\"><label>Nom affiché<input id=\"profileName\" value=\""+esc(p.name)+"\" placeholder=\"Ex. Ethan\"></label><label>Ville pour la météo<input id=\"profileCity\" value=\""+esc(p.city)+"\" placeholder=\"Ex. Saint-Rémy-de-Provence\"></label><label>Budget maximum (€)<input id=\"profileBudget\" type=\"number\" min=\"0\" value=\""+Number(p.budget||0)+"\"></label><label class=\"check\"><input id=\"profileWeather\" type=\"checkbox\" "+(p.weather!==false?"checked":"")+"> Adapter les recommandations à la météo</label><h2>Styles</h2><div class=\"choices\">"+checks(styles,"style")+"</div><h2>Modèles préférés</h2><div class=\"choices\">"+checks(models,"model")+"</div>"+brandCatalog()+"<h2>Couleurs favorites</h2><div class=\"actions\">"+COLORS.filter(function(x){return x!=="Autre"}).map(function(c){return "<button class=\"colorchoice "+(p.colors&&p.colors.includes(c)?"selected":"")+"\" data-action=\"prefColor\" data-color=\""+c+"\"><i class=\"swatch\" style=\"background:"+HEX[c]+"\"></i>"+c+"</button>"}).join("")+"</div><button class=\"primary\" id=\"saveProfile\">Enregistrer mon profil</button></div></div>";
 }
 function colorimetryPage(){
-  var c=db.settings.colorimetry||{palette:[],status:"Non définie"};
-  return "<div class=\"section\"><span class=\"eyebrow\">COULEURS PERSONNALISÉES</span><h1>Colorimétrie</h1><div class=\"card\"><h2>📷 Photo</h2><p class=\"muted\">CLOSETIA extrait les couleurs visibles de la photo pour construire une palette vestimentaire. Il ne fait aucune analyse du corps ou de la silhouette.</p><input id=\"colorPhoto\" type=\"file\" accept=\"image/*\"><div class=\"photoPalette\">"+(c.palette||[]).map(function(x){return "<i style=\"background:"+x+"\"></i>"}).join("")+"</div><p class=\"muted\">"+esc(c.status)+"</p></div><div class=\"card\" style=\"margin-top:15px\"><h2>Questionnaire couleurs</h2><div class=\"actions\">"+COLORS.filter(function(x){return x!=="Autre"}).map(function(x){return "<button class=\"colorchoice\" data-action=\"prefColor\" data-color=\""+x+"\"><i class=\"swatch\" style=\"background:"+HEX[x]+"\"></i>"+x+"</button>"}).join("")+"</div></div></div>";
+  var c=db.settings.colorimetry||{palette:[],status:"Non définie",selectedColors:[]};
+  var palette=Array.isArray(c.palette)?c.palette:[];
+  var selected=Array.isArray(c.selectedColors)?c.selectedColors:[];
+  return "<div class=\"section\"><span class=\"eyebrow\">COULEURS PERSONNALISÉES</span><h1>Colorimétrie</h1><p class=\"muted\">Cette page aide à explorer les couleurs. Une photo seule ne permet pas de déterminer de façon fiable une saison de colorimétrie personnelle.</p><div class=\"card\"><h2>Extraction de palette depuis une photo</h2><p class=\"muted\">Les échantillons représentent les couleurs dominantes détectées dans l’image, pas un diagnostic personnel. Les couleurs peuvent varier selon la lumière et l’écran.</p><label for=\"colorPhoto\">Choisir une photo</label><input id=\"colorPhoto\" type=\"file\" accept=\"image/*\"><div class=\"photoPalette\">"+palette.map(function(x){var hex=paletteHex(x);return "<div class=\"palette-sample\"><i style=\"background:"+esc(hex)+"\"></i><code>"+esc(hex)+"</code><button class=\"ghost\" type=\"button\" data-action=\"copyHex\" data-hex=\""+esc(hex)+"\">Copier HEX</button></div>"}).join("")+"</div><p class=\"muted\">"+esc(c.status||"Aucune palette extraite pour le moment.")+"</p><button class=\"ghost\" type=\"button\" data-action=\"clearPhotoPalette\">Effacer la palette extraite</button></div><div class=\"card\" style=\"margin-top:15px\"><h2>Mes couleurs appréciées</h2><p class=\"muted\">Sélectionne les couleurs que tu aimes porter. Ce questionnaire mémorise tes préférences, sans prétendre analyser ton sous-ton ou ta saison.</p><div class=\"actions\">"+COLORS.filter(function(x){return x!=="Autre"}).map(function(x){return "<button type=\"button\" class=\"colorchoice "+(selected.includes(x)?"selected":"")+"\" aria-pressed=\""+selected.includes(x)+"\" data-action=\"colorimetryColor\" data-color=\""+x+"\"><i class=\"swatch\" style=\"background:"+HEX[x]+"\"></i>"+x+"</button>"}).join("")+"</div><p class=\"muted\">"+selected.length+" couleur"+(selected.length>1?"s":"")+" sélectionnée"+(selected.length>1?"s":"")+".</p></div></div>";
+}
+function paletteHex(value){
+  var s=String(value||"").trim();
+  if(/^#[0-9a-f]{6}$/i.test(s))return s.toUpperCase();
+  var match=s.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+  if(match)return "#"+match.slice(1).map(function(n){return Math.max(0,Math.min(255,Number(n))).toString(16).padStart(2,"0")}).join("").toUpperCase();
+  return "#808080";
+}
+function toggleColorimetryColor(color){
+  db.settings.colorimetry=db.settings.colorimetry||{palette:[],status:"Non définie",selectedColors:[]};
+  var c=db.settings.colorimetry;
+  c.selectedColors=Array.isArray(c.selectedColors)?c.selectedColors:[];
+  c.selectedColors=c.selectedColors.includes(color)?c.selectedColors.filter(function(x){return x!==color}):c.selectedColors.concat(color);
+  save();
+}
+function copyHex(hex){
+  var value=String(hex||"").toUpperCase();
+  if(!/^#[0-9A-F]{6}$/.test(value))return;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(value).then(function(){showCloudStatus(cloudStatusText,false);alert(value+" copié.")}).catch(function(){prompt("Copie ce code HEX :",value)});
+  }else prompt("Copie ce code HEX :",value);
 }
 function analyzeColorPhoto(file){
-  if(!file)return; var img=new Image(), url=URL.createObjectURL(file);
-  img.onload=function(){ var cv=document.createElement("canvas"),cx=cv.getContext("2d",{willReadFrequently:true}); cv.width=100;cv.height=100;cx.drawImage(img,0,0,100,100);var d=cx.getImageData(0,0,100,100).data,b={};
-    for(var i=0;i<d.length;i+=20){var k=Math.round(d[i]/32)*32+","+Math.round(d[i+1]/32)*32+","+Math.round(d[i+2]/32)*32;b[k]=(b[k]||0)+1}
-    db.settings.colorimetry={palette:Object.keys(b).sort(function(a,z){return b[z]-b[a]}).slice(0,6).map(function(x){return "rgb("+x+")"}),status:"Palette extraite de la photo"};save();URL.revokeObjectURL(url);
-  }; img.src=url;
+  if(!file)return;
+  if(!file.type||!file.type.startsWith("image/")){alert("Choisis un fichier image.");return}
+  var img=new Image(),url=URL.createObjectURL(file);
+  img.onload=function(){
+    try{
+      var cv=document.createElement("canvas"),cx=cv.getContext("2d",{willReadFrequently:true});
+      var scale=Math.min(1,100/Math.max(img.naturalWidth,img.naturalHeight));
+      cv.width=Math.max(1,Math.round(img.naturalWidth*scale));cv.height=Math.max(1,Math.round(img.naturalHeight*scale));
+      cx.drawImage(img,0,0,cv.width,cv.height);
+      var d=cx.getImageData(0,0,cv.width,cv.height).data,b={};
+      for(var i=0;i<d.length;i+=4){
+        var r=Math.min(255,Math.round(d[i]/32)*32),g=Math.min(255,Math.round(d[i+1]/32)*32),bl=Math.min(255,Math.round(d[i+2]/32)*32);
+        var hex="#"+[r,g,bl].map(function(n){return n.toString(16).padStart(2,"0")}).join("").toUpperCase();
+        b[hex]=(b[hex]||0)+1;
+      }
+      db.settings.colorimetry=db.settings.colorimetry||{palette:[],status:"Non définie",selectedColors:[]};
+      db.settings.colorimetry.palette=Object.keys(b).sort(function(a,z){return b[z]-b[a]}).slice(0,6);
+      db.settings.colorimetry.status="Palette extraite de la photo";
+      save();
+    }catch(e){alert("Impossible d’extraire la palette de cette image.");console.error(e)}
+    finally{URL.revokeObjectURL(url)}
+  };
+  img.onerror=function(){URL.revokeObjectURL(url);alert("Impossible de lire cette image.")};
+  img.src=url;
 }
 function starPage(){
   var p=db.settings.profile||{}, list=db.items.slice().sort(function(a,b){var sa=(b.favorite?5:0)+(p.colors&&p.colors.includes(b.color)?5:0)+b.wears;var sb=(a.favorite?5:0)+(p.colors&&p.colors.includes(a.color)?5:0)+a.wears;return sa-sb}).slice(0,8);
@@ -734,10 +814,23 @@ function render(){
   const page=hash.startsWith("#/") ? hash.slice(2) : "";
   const app=$("app");
   if(!app) return;
+  const active=document.activeElement;
+  const activeId=active&&active.id;
+  const selectionStart=active&&typeof active.selectionStart==="number"?active.selectionStart:null;
+  const selectionEnd=active&&typeof active.selectionEnd==="number"?active.selectionEnd:null;
   document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("active",a.getAttribute("href")==="#/"+page));
   try{
     app.innerHTML=page==="dressing"?dressing():page==="tenues"?outfits():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():home();
     bindPage();
+    if(activeId){
+      const replacement=$(activeId);
+      if(replacement){
+        replacement.focus({preventScroll:true});
+        if(selectionStart!==null && typeof replacement.setSelectionRange==="function"){
+          try{replacement.setSelectionRange(selectionStart,selectionEnd);}catch(ignore){}
+        }
+      }
+    }
   }catch(e){
     console.error("CLOSETIA render error",e);
     app.innerHTML='<div class="section"><div class="card"><h1>Erreur de chargement</h1><p>Une erreur JavaScript a empêché cette page de se charger.</p><button class="primary" id="safeReload">Recharger</button></div></div>';
@@ -763,6 +856,9 @@ function bindPage(){
       else if(action==="generate") generateOutfit();
       else if(action==="deleteOutfit") deleteOutfit(itemId);
       else if(action==="palette") togglePalette(el.dataset.color); else if(action==="colorHarmony") getColorHarmony();
+      else if(action==="colorimetryColor") toggleColorimetryColor(el.dataset.color);
+      else if(action==="copyHex") copyHex(el.dataset.hex);
+      else if(action==="clearPhotoPalette"){db.settings.colorimetry=db.settings.colorimetry||{};db.settings.colorimetry.palette=[];db.settings.colorimetry.status="Palette effacée";save();}
       else if(action==="day") setCalendarDay(el.dataset.day); else if(action==="calendarPrev"){calendarOffset--;render()} else if(action==="calendarNext"){calendarOffset++;render()}
       else if(action==="demo") demo(); else if(action==="prefColor") togglePrefColor(el.dataset.color); else if(action==="searchBrands") searchBrands(); else if(action==="toggleBrand") toggleBrand(el.dataset.brand); else if(action==="addManualBrand") addManualBrand(); else if(action==="addFriend") addFriend(); else if(action==="removeFriend") removeFriend(el.dataset.id);
     });
