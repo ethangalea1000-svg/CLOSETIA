@@ -25,7 +25,7 @@ function normalize(x){
   x = x || {};
   return {
     id:x.id || makeId(),
-    name:(x.name && !/^\d[\d _-]*$/.test(String(x.name).trim())) ? x.name : "T-shirt noir imprimé",
+    name:(x.name && !/^\d[\d _-]*$/.test(String(x.name).trim())) ? String(x.name).trim() : "Vêtement sans nom",
     category:CATS.includes(x.category) ? x.category : "Autre",
     color:COLORS.includes(x.color) ? x.color : "Autre",
     occasion:OCC.includes(x.occasion) ? x.occasion : "Tous les jours",
@@ -878,7 +878,7 @@ window.render=render;
 db.settings={...fresh().settings,...(db.settings||{}),profile:{...fresh().settings.profile,...((db.settings&&db.settings.profile)||{})},colorimetry:{...fresh().settings.colorimetry,...((db.settings&&db.settings.colorimetry)||{})},friends:Array.isArray(db.settings?.friends)?db.settings.friends:[],shared:Array.isArray(db.settings?.shared)?db.settings.shared:[]};
 db.items.forEach(item => {
   if(/^\d[\d _-]*$/.test(String(item.name || "").trim())){
-    item.name = "T-shirt noir imprimé";
+    item.name = "Vêtement sans nom";
   }
 });
 save(false);
