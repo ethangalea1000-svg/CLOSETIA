@@ -503,7 +503,7 @@ function demo(){
 }
 
 function itemCard(item){
-  const image=item.image ? `<img src="${item.image}" alt="${esc(item.name)}">` : '<div class="empty">Pas de photo</div>';
+  const image=item.image ? `<img src="${esc(item.image)}" alt="${esc(item.name)}">` : '<div class="empty">Pas de photo</div>';
   return `
     <article class="card item">
       <div class="photo">${image}<button class="heart ${item.favorite?"on":""}" data-action="favorite" data-id="${item.id}">${item.favorite?"♥":"♡"}</button></div>
@@ -610,7 +610,7 @@ function copyHex(hex){
   var value=String(hex||"").toUpperCase();
   if(!/^#[0-9A-F]{6}$/.test(value))return;
   if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(value).then(function(){showCloudStatus(cloudStatusText,false);alert(value+" copié.")}).catch(function(){prompt("Copie ce code HEX :",value)});
+    navigator.clipboard.writeText(value).then(function(){alert(value+" copié.")}).catch(function(){prompt("Copie ce code HEX :",value)});
   }else prompt("Copie ce code HEX :",value);
 }
 function analyzeColorPhoto(file){
@@ -736,7 +736,7 @@ function outfits(){
     return `
       <article class="card outfit">
         <div class="sectionhead"><div><h3>${esc(o.name)}</h3><span class="tag">${esc(o.occasion)}</span></div><button class="danger" data-action="deleteOutfit" data-id="${o.id}">Supprimer</button></div>
-        <div class="mini">${items.map(x=>`<div>${x.image?`<img src="${x.image}" alt="">`:""}<small>${esc(x.name)}</small></div>`).join("")}</div>
+        <div class="mini">${items.map(x=>`<div>${x.image?`<img src="${esc(x.image)}" alt="">`:""}<small>${esc(x.name)}</small></div>`).join("")}</div>
       </article>`;
   }).join("");
   return `
