@@ -25,7 +25,7 @@ function normalize(x){
   x = x || {};
   return {
     id:x.id || makeId(),
-    name:(x.name && !/^\\d[\\d _-]*$/.test(String(x.name).trim())) ? x.name : "T-shirt noir imprimé",
+    name:(x.name && !/^\d[\d _-]*$/.test(String(x.name).trim())) ? x.name : "T-shirt noir imprimé",
     category:CATS.includes(x.category) ? x.category : "Autre",
     color:COLORS.includes(x.color) ? x.color : "Autre",
     occasion:OCC.includes(x.occasion) ? x.occasion : "Tous les jours",
@@ -83,17 +83,25 @@ function guess(name){
 function addFiles(files){
   Array.from(files || []).forEach(file=>{
     if(!file.type || !file.type.startsWith("image/")) return;
+    const baseName=file.name.replace(/\.[^.]+$/,"").replace(/[_-]+/g," ").trim();
+    const g=guess(baseName);
     const reader=new FileReader();
     reader.onload=()=>{
-      const baseName=file.name.replace(/\.[^.]+$/,"").replace(/[_-]+/g," ").trim();
-      const g=guess(baseName);
-      db.items.push(normalize({
-        name:(baseName && !/^\\d[\\d _-]*$/.test(baseName)) ? baseName : "T-shirt noir imprimé",
-        category:g.category,
-        color:g.color,
-        image:reader.result
-      }));
-      save();
+      const img=new Image();
+      img.onload=()=>{
+        try{
+          const scale=Math.min(1,1200/Math.max(img.naturalWidth,img.naturalHeight));
+          const canvas=document.createElement("canvas");
+          canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
+          canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+          canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+          const data=canvas.toDataURL("image/jpeg",0.78);
+          db.items.push(normalize({name:(baseName && !/^\d[\d _-]*$/.test(baseName))?baseName:"Vêtement",category:g.category,color:g.color,image:data}));
+          save();
+        }catch(e){alert("Photo trop lourde pour être enregistrée. Essaie une image plus petite.");console.error(e)}
+      };
+      img.onerror=()=>alert("Impossible de traiter la photo "+file.name);
+      img.src=reader.result;
     };
     reader.onerror=()=>alert("Impossible de lire "+file.name);
     reader.readAsDataURL(file);
@@ -130,12 +138,14 @@ function importJSON(file){
     try{
       const x=JSON.parse(reader.result);
       if(!Array.isArray(x.items)) throw new Error("items manquants");
+      const defaults=fresh();
+      const incoming=x.settings && typeof x.settings==="object"?x.settings:{};
       db={
         items:x.items.map(normalize),
         outfits:Array.isArray(x.outfits)?x.outfits:[],
         calendar:x.calendar && typeof x.calendar==="object"?x.calendar:{},
         palette:Array.isArray(x.palette)?x.palette:[],
-        settings:x.settings && typeof x.settings==="object"?x.settings:{}
+        settings:{...defaults.settings,...incoming,profile:{...defaults.settings.profile,...(incoming.profile||{})},colorimetry:{...defaults.settings.colorimetry,...(incoming.colorimetry||{})},friends:Array.isArray(incoming.friends)?incoming.friends:[],shared:Array.isArray(incoming.shared)?incoming.shared:[]}
       };
       save();
       alert("Dressing importé avec succès.");
@@ -316,10 +326,10 @@ function saveProfileData(){
   p.budget=Number(($("profileBudget")||{}).value||0); p.weather=Boolean(($("profileWeather")||{}).checked);
   p.styles=Array.from(document.querySelectorAll("[data-pref=style]:checked")).map(function(x){return x.value});
   p.models=Array.from(document.querySelectorAll("[data-pref=model]:checked")).map(function(x){return x.value});
-  p.brands=Array.from(document.querySelectorAll("[data-pref=brand]:checked")).map(function(x){return x.value});
+  p.brands=Array.isArray(p.brands)?p.brands:[];
   db.settings.profile=p; save(); alert("Profil enregistré.");
 }
-function togglePrefColor(c){ var p=db.settings.profile; p.colors=p.colors||[]; p.colors=p.colors.includes(c)?p.colors.filter(function(x){return x!==c}):p.colors.concat(c); save(); }
+function togglePrefColor(c){ db.settings=db.settings||fresh().settings; db.settings.profile=db.settings.profile||fresh().settings.profile; var p=db.settings.profile; p.colors=p.colors||[]; p.colors=p.colors.includes(c)?p.colors.filter(function(x){return x!==c}):p.colors.concat(c); save(); }
 function brandCatalog(){
   var p=db.settings.profile||{};
   return "<div class=\"card brand-catalog\"><div class=\"brand-head\"><div><h2>Marques</h2><p class=\"muted\">Recherche dans un catalogue mondial de marques. Les résultats sont chargés à la demande pour ne pas ralentir CLOSETIA.</p></div><span class=\"badge\">Catalogue massif</span></div><div class=\"brand-search\"><input id=\"brandSearch\" placeholder=\"Rechercher une marque…\" autocomplete=\"off\"><button class=\"primary\" data-action=\"searchBrands\">Rechercher</button></div><div id=\"brandResults\" class=\"brand-results\"><p class=\"muted\">Tape au moins 2 caractères.</p></div><div class=\"brand-manual\"><input id=\"manualBrand\" placeholder=\"Marque absente ? Ajouter manuellement\"><button data-action=\"addManualBrand\">Ajouter</button></div></div>";
@@ -359,8 +369,10 @@ async function searchBrands(){
 function toggleBrand(name){
   var p=db.settings.profile||{}; p.brands=p.brands||[];
   p.brands=p.brands.includes(name)?p.brands.filter(function(x){return x!==name}):p.brands.concat(name);
-  db.settings.profile=p;save();
-  searchBrands();
+  db.settings.profile=p;save(false);
+  var q=(($("brandSearch")||{}).value||"").trim();
+  if(q.length>=2) searchBrands();
+  else {var box=$("brandResults");if(box)box.innerHTML='<p class="muted">Favori enregistré. Recherche une autre marque ou ajoute-la manuellement.</p>';}
 }
 function addManualBrand(){
   var el=$("manualBrand"), n=(el&&el.value||"").trim(); if(!n)return;
@@ -389,7 +401,7 @@ function starPage(){
 function friendsPage(){
   var fs=db.settings.friends||[]; return "<div class=\"section\"><span class=\"eyebrow\">SOCIAL</span><h1>Amis</h1><div class=\"card\"><p class=\"muted\">Les amis sont préparés localement. Le partage en ligne sera branché sur D1/R2 ensuite.</p><div class=\"toolbar\"><input id=\"friendName\" placeholder=\"Nom de l’ami\"><button class=\"primary\" data-action=\"addFriend\">Ajouter</button></div></div><div class=\"grid\">"+(fs.length?fs.map(function(x,i){return "<div class=\"card\"><h3>👤 "+esc(x)+"</h3><button class=\"danger\" data-action=\"removeFriend\" data-id=\""+i+"\">Supprimer</button></div>"}).join(""):"<div class=\"empty\">Aucun ami.</div>")+"</div></div>";
 }
-function addFriend(){var n=(($("friendName")||{}).value||"").trim();if(!n)return;db.settings.friends=(db.settings.friends||[]).concat(n);save()}
+function addFriend(){var n=(($("friendName")||{}).value||"").trim();if(!n)return;var fs=db.settings.friends||[];if(fs.some(function(x){return String(x).toLowerCase()===n.toLowerCase()})){alert("Cet ami est déjà dans la liste.");return}db.settings.friends=fs.concat(n);save()}
 function removeFriend(i){db.settings.friends.splice(Number(i),1);save()}
 function smartWeather(){
   var p=db.settings.profile||{}; if(!p.city){$("weatherBox").innerHTML="Ajoute ta ville dans Mon style.";return}
@@ -561,7 +573,7 @@ window.closeModal=closeModal;
 window.render=render;
 db.settings={...fresh().settings,...(db.settings||{}),profile:{...fresh().settings.profile,...((db.settings&&db.settings.profile)||{})},colorimetry:{...fresh().settings.colorimetry,...((db.settings&&db.settings.colorimetry)||{})},friends:Array.isArray(db.settings?.friends)?db.settings.friends:[],shared:Array.isArray(db.settings?.shared)?db.settings.shared:[]};
 db.items.forEach(item => {
-  if(/^\\d[\\d _-]*$/.test(String(item.name || "").trim())){
+  if(/^\d[\d _-]*$/.test(String(item.name || "").trim())){
     item.name = "T-shirt noir imprimé";
   }
 });
