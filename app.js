@@ -677,8 +677,8 @@ function starPage(){
   var p=db.settings.profile||{}, list=db.items.slice().sort(function(a,b){var sa=(b.favorite?5:0)+(p.colors&&p.colors.includes(b.color)?5:0)+b.wears+(p.patterns&&p.patterns.some(function(v){return String(b.notes||"").toLowerCase().includes(v.toLowerCase())})?2:0);var sb=(a.favorite?5:0)+(p.colors&&p.colors.includes(a.color)?5:0)+a.wears+(p.patterns&&p.patterns.some(function(v){return String(a.notes||"").toLowerCase().includes(v.toLowerCase())})?2:0);return sa-sb}).slice(0,8);
   return "<div class=\"section\"><span class=\"eyebrow\">RECOMMANDATIONS</span><h1>⭐ Outfit Star</h1><div id=\"weatherBox\" class=\"card weatherbox\">Chargement de la météo…</div><p class=\"muted\">Pièces favorisées selon tes goûts, tes couleurs, tes favoris et ton historique.</p><div class=\"grid\">"+(list.length?list.map(itemCard).join(""):"<div class=\"empty\">Ajoute des vêtements pour obtenir des recommandations.</div>")+"</div><div style=\"margin-top:24px\">"+shoppingSuggestions()+"</div></div>";
 }
-function celebrityLooksPage(){
-  var celebs=[
+function celebrityData(){
+  return [
     {name:"Zendaya",source:"Vogue"},
     {name:"Timothée Chalamet",source:"GQ"},
     {name:"Jenna Ortega",source:"Vogue"},
@@ -692,10 +692,47 @@ function celebrityLooksPage(){
     {name:"Anya Taylor-Joy",source:"Vogue"},
     {name:"Bad Bunny",source:"GQ"}
   ];
-  return "<div class=\"section\"><span class=\"eyebrow\">INSPIRATION MODE</span><h1>Looks récents des stars</h1><p class=\"muted\">Retrouve les dernières apparitions publiques de plusieurs célébrités. Les liens ouvrent des recherches actualisées : la date et la tenue dépendent des articles disponibles, ce n’est pas un flux garanti en temps réel.</p><div class=\"celebrity-grid\">"+celebs.map(function(c){
-    var q=c.name+" latest outfit fashion street style red carpet";
-    return "<article class=\"card celebrity-card\"><div class=\"celebrity-avatar\" aria-hidden=\"true\">"+esc(c.name.split(" ").map(function(x){return x.charAt(0)}).join("").slice(0,2))+"</div><h2>"+esc(c.name)+"</h2><p class=\"muted\">Tenues récentes · "+esc(c.source)+" et autres médias</p><div class=\"store-links\"><a class=\"store-link\" href=\"https://www.google.com/search?tbm=isch&q="+encodeURIComponent(q)+"\" target=\"_blank\" rel=\"noopener noreferrer\">Voir les photos ↗</a><a class=\"store-link store-link-all\" href=\"https://news.google.com/search?q="+encodeURIComponent(q)+"&hl=fr&gl=FR&ceid=FR%3Afr\" target=\"_blank\" rel=\"noopener noreferrer\">Dernières actualités ↗</a></div></article>";
-  }).join("")+"</div><p class=\"muted\">Vérifie la date et le contexte des articles : une recherche d’images peut aussi afficher des looks plus anciens.</p></div>";
+}
+function celebrityLooksPage(){
+  var celebs=celebrityData();
+  return "<div class=\"section\"><span class=\"eyebrow\">INSPIRATION MODE</span><h1>Looks récents des stars</h1><p class=\"muted\">Photos et actualités chargées en arrière-plan et affichées directement ici. Tu restes sur CLOSETIA : aucun bouton ne t’envoie vers un autre site. La fraîcheur des résultats dépend des sources disponibles.</p><div class=\"celebrity-grid\">"+celebs.map(function(c,i){
+    return "<article class=\"card celebrity-card\"><div class=\"celebrity-heading\"><div class=\"celebrity-avatar\" aria-hidden=\"true\">"+esc(c.name.split(" ").map(function(x){return x.charAt(0)}).join("").slice(0,2))+"</div><div><h2>"+esc(c.name)+"</h2><p class=\"muted\">Style & apparitions publiques</p></div></div><div id=\"celebrity-photos-"+i+"\" class=\"celebrity-photos\"><p class=\"muted\">Chargement des photos…</p></div><h3 class=\"celebrity-subtitle\">Actualités mode</h3><div id=\"celebrity-news-"+i+"\" class=\"celebrity-news\"><p class=\"muted\">Recherche des dernières actualités…</p></div></article>";
+  }).join("")+"</div><p class=\"muted celebrity-footnote\">Les photos et titres sont intégrés dans la page. Les dates sont affichées lorsqu’elles sont fournies par la source ; certains résultats peuvent être plus anciens.</p></div>";
+}
+function loadCelebrityLooks(){
+  if(location.hash!=="#/stars")return;
+  var celebs=celebrityData();
+  celebs.forEach(function(c,i){
+    var photosBox=$("celebrity-photos-"+i),newsBox=$("celebrity-news-"+i);
+    if(photosBox){
+      var imageQuery=c.name+" fashion outfit";
+      var imageUrl="https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch="+encodeURIComponent(imageQuery)+"&gsrnamespace=6&gsrlimit=4&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=520&format=json&origin=*";
+      fetch(imageUrl).then(function(r){if(!r.ok)throw new Error("Photos indisponibles");return r.json()}).then(function(data){
+        var pages=Object.values((data.query&&data.query.pages)||{}).filter(function(p){return p.imageinfo&&p.imageinfo[0]&&p.imageinfo[0].thumburl});
+        if(!pages.length)throw new Error("Aucune photo trouvée");
+        photosBox.innerHTML="<div class=\"celebrity-photo-grid\">"+pages.slice(0,3).map(function(p){
+          var info=p.imageinfo[0],meta=info.extmetadata||{},artist=(meta.Artist&&meta.Artist.value||"Crédit photo Wikimedia Commons").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&#160;|&nbsp;/g," ").replace(/\s+/g," ").trim();
+          var license=(meta.LicenseShortName&&meta.LicenseShortName.value||"Licence à vérifier").replace(/<[^>]*>/g,"").trim();
+          return "<figure class=\"celebrity-photo\"><img loading=\"lazy\" src=\""+esc(info.thumburl)+"\" alt=\"Photo de "+esc(c.name)+" — "+esc(p.title.replace(/^File:/,"").replace(/_/g," "))+"\" referrerpolicy=\"no-referrer\"><figcaption>"+esc(artist.slice(0,100))+" · "+esc(license)+"</figcaption></figure>";
+        }).join("")+"</div><p class=\"celebrity-source-note\">Photos intégrées depuis Wikimedia Commons.</p>";
+      }).catch(function(){photosBox.innerHTML="<p class=\"muted\">Aucune photo intégrable trouvée pour le moment.</p>"});
+    }
+    if(newsBox){
+      var q=c.name+" fashion outfit style";
+      var rss="https://news.google.com/rss/search?q="+encodeURIComponent(q)+"&hl=fr&gl=FR&ceid=FR:fr";
+      var proxy="https://api.rss2json.com/v1/api.json?rss_url="+encodeURIComponent(rss);
+      fetch(proxy).then(function(r){if(!r.ok)throw new Error("Actualités indisponibles");return r.json()}).then(function(data){
+        var items=(data.items||[]).slice(0,3);
+        if(!items.length)throw new Error("Aucune actualité");
+        newsBox.innerHTML=items.map(function(item){
+          var date=item.pubDate?new Date(item.pubDate):null;
+          var dateText=date&&!isNaN(date.getTime())?date.toLocaleDateString("fr-FR",{day:"numeric",month:"short",year:"numeric"}):"Date non fournie";
+          var source=(item.author||item.source||"Presse en ligne").replace(/<[^>]*>/g,"").trim();
+          return "<article class=\"celebrity-news-item\"><p>"+esc(item.title||"Actualité mode")+"</p><small>"+esc(source)+" · "+esc(dateText)+"</small></article>";
+        }).join("");
+      }).catch(function(){newsBox.innerHTML="<p class=\"muted\">Les actualités ne sont pas disponibles pour le moment. Réessaie plus tard.</p>"});
+    }
+  });
 }
 function friendsPage(){
   var fs=db.settings.friends||[]; return "<div class=\"section\"><span class=\"eyebrow\">SOCIAL</span><h1>Amis</h1><div class=\"card\"><p class=\"muted\">Les amis sont préparés localement. Le partage en ligne sera branché sur D1/R2 ensuite.</p><div class=\"toolbar\"><input id=\"friendName\" placeholder=\"Nom de l’ami\"><button class=\"primary\" data-action=\"addFriend\">Ajouter</button></div></div><div class=\"grid\">"+(fs.length?fs.map(function(x,i){return "<div class=\"card\"><h3>👤 "+esc(x)+"</h3><button class=\"danger\" data-action=\"removeFriend\" data-id=\""+i+"\">Supprimer</button></div>"}).join(""):"<div class=\"empty\">Aucun ami.</div>")+"</div></div>";
@@ -877,6 +914,7 @@ function render(){
   try{
     app.innerHTML=page==="dressing"?dressing():page==="tenues"?outfits():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="stars"?celebrityLooksPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():home();
     bindPage();
+    if(page==="stars") setTimeout(loadCelebrityLooks,0);
     if(activeId){
       const replacement=$(activeId);
       if(replacement){
