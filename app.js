@@ -639,9 +639,20 @@ function analyzeColorPhoto(file){
   img.onerror=function(){URL.revokeObjectURL(url);alert("Impossible de lire cette image.")};
   img.src=url;
 }
+function shoppingSuggestions(){
+  var p=db.settings.profile||{};
+  var models=Array.isArray(p.models)&&p.models.length?p.models:["T-shirt","Sweat","Jean","Veste","Sneakers"];
+  var brands=Array.isArray(p.brands)?p.brands:[];
+  var budget=Number(p.budget||0);
+  var stores=[{name:"Zalando",domain:"zalando.fr"},{name:"Kiabi",domain:"kiabi.com"},{name:"H&M",domain:"hm.com"},{name:"Decathlon",domain:"decathlon.fr"}];
+  return "<div class=\"card shopping-card\"><span class=\"eyebrow\">IDÉES D’ACHAT</span><h2>Modèles à découvrir</h2><p class=\"muted\">Suggestions basées sur les modèles et marques que tu as choisis. Les liens ouvrent une recherche en magasin : vérifie le prix, la disponibilité, la taille et les conditions avant d’acheter.</p><div class=\"grid\">"+models.slice(0,8).map(function(model){
+    var query=[model,brands[0]||"",budget>0?"moins de "+budget+" euros":""].filter(Boolean).join(" ");
+    return "<article class=\"card\"><h3>"+esc(model)+"</h3><p class=\"muted\">"+(brands.length?"Marque préférée : "+esc(brands[0]):"Style : "+esc((p.styles||[]).join(", ")||"à personnaliser"))+(budget>0?" · budget indicatif : "+budget+" €":"")+"</p><div class=\"store-links\">"+stores.map(function(store){var q="site:"+store.domain+" "+query;return "<a class=\"store-link\" href=\"https://www.google.com/search?q="+encodeURIComponent(q)+"\" target=\"_blank\" rel=\"noopener noreferrer\">Voir sur "+esc(store.name)+" ↗</a>"}).join("")+"<a class=\"store-link store-link-all\" href=\"https://www.google.com/search?tbm=shop&q="+encodeURIComponent(query)+"\" target=\"_blank\" rel=\"noopener noreferrer\">Comparer les magasins ↗</a></div></article>";
+  }).join("")+"</div></div>";
+}
 function starPage(){
   var p=db.settings.profile||{}, list=db.items.slice().sort(function(a,b){var sa=(b.favorite?5:0)+(p.colors&&p.colors.includes(b.color)?5:0)+b.wears;var sb=(a.favorite?5:0)+(p.colors&&p.colors.includes(a.color)?5:0)+a.wears;return sa-sb}).slice(0,8);
-  return "<div class=\"section\"><span class=\"eyebrow\">RECOMMANDATIONS</span><h1>⭐ Outfit Star</h1><div id=\"weatherBox\" class=\"card weatherbox\">Météo : configure ta ville dans Mon style.</div><p class=\"muted\">Pièces favorisées selon tes goûts, tes couleurs, tes favoris et ton historique.</p><div class=\"grid\">"+(list.length?list.map(itemCard).join(""):"<div class=\"empty\">Ajoute des vêtements pour obtenir des recommandations.</div>")+"</div></div>";
+  return "<div class=\"section\"><span class=\"eyebrow\">RECOMMANDATIONS</span><h1>⭐ Outfit Star</h1><div id=\"weatherBox\" class=\"card weatherbox\">Chargement de la météo…</div><p class=\"muted\">Pièces favorisées selon tes goûts, tes couleurs, tes favoris et ton historique.</p><div class=\"grid\">"+(list.length?list.map(itemCard).join(""):"<div class=\"empty\">Ajoute des vêtements pour obtenir des recommandations.</div>")+"</div><div style=\"margin-top:24px\">"+shoppingSuggestions()+"</div></div>";
 }
 function friendsPage(){
   var fs=db.settings.friends||[]; return "<div class=\"section\"><span class=\"eyebrow\">SOCIAL</span><h1>Amis</h1><div class=\"card\"><p class=\"muted\">Les amis sont préparés localement. Le partage en ligne sera branché sur D1/R2 ensuite.</p><div class=\"toolbar\"><input id=\"friendName\" placeholder=\"Nom de l’ami\"><button class=\"primary\" data-action=\"addFriend\">Ajouter</button></div></div><div class=\"grid\">"+(fs.length?fs.map(function(x,i){return "<div class=\"card\"><h3>👤 "+esc(x)+"</h3><button class=\"danger\" data-action=\"removeFriend\" data-id=\""+i+"\">Supprimer</button></div>"}).join(""):"<div class=\"empty\">Aucun ami.</div>")+"</div></div>";
@@ -651,9 +662,9 @@ function removeFriend(i){db.settings.friends.splice(Number(i),1);save()}
 function smartWeather(){
   var p=db.settings.profile||{}, box=$("weatherBox");
   if(!box)return;
-  if(!p.city){box.innerHTML="Ajoute ta ville dans <a href=\"#/profil\">Mon style</a> pour afficher la météo.";return}
-  box.textContent="Chargement de la météo…";
-  fetch("https://geocoding-api.open-meteo.com/v1/search?name="+encodeURIComponent(p.city)+"&count=1&language=fr&format=json")
+  var city=(p.city||"Saint-Rémy-de-Provence").trim();
+  box.textContent="Chargement de la météo pour "+city+"…";
+  fetch("https://geocoding-api.open-meteo.com/v1/search?name="+encodeURIComponent(city)+"&count=1&language=fr&format=json")
     .then(function(r){if(!r.ok)throw new Error("Géocodage indisponible");return r.json()})
     .then(function(g){
       var x=g.results&&g.results[0];if(!x)throw new Error("Ville introuvable");
@@ -691,6 +702,7 @@ function home(){
         
       </div>
     </div>
+    <div class="card weatherbox home-weather" id="weatherBox" style="margin-top:18px">Chargement de la météo…</div>
     <div class="dashboard">
       <a class="card feature" href="#/dressing"><b>👕 Dressing</b><span>${db.items.length} vêtement${db.items.length>1?"s":""} · recherche · filtres · favoris</span></a>
       <a class="card feature" href="#/tenues"><b>✨ Tenues</b><span>${db.outfits.length} tenue${db.outfits.length>1?"s":""} · générateur</span></a>
@@ -865,7 +877,7 @@ function bindPage(){
   });
   if($("saveProfile")) $("saveProfile").onclick=saveProfileData;
   if($("colorPhoto")) $("colorPhoto").onchange=function(e){analyzeColorPhoto(e.target.files[0])};
-  if(location.hash==="#/star") setTimeout(smartWeather,50);
+  if(location.hash==="#/star"||location.hash==="#/"||location.hash==="#") setTimeout(smartWeather,50);
 }
 
 if(photos) photos.addEventListener("change",e=>{ addFiles(e.target.files); e.target.value=""; });
