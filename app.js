@@ -62,7 +62,17 @@ let cloudSyncTimer = null;
 let cloudSyncRunning = false;
 let cloudReady = false;
 
-function cloudToken(){ try{return sessionStorage.getItem(CLOUD_TOKEN_KEY)||"";}catch(e){return "";} }
+function cloudToken(){
+  try{
+    const saved=localStorage.getItem(CLOUD_TOKEN_KEY);
+    if(saved) return saved;
+    const legacy=sessionStorage.getItem(CLOUD_TOKEN_KEY);
+    if(legacy){localStorage.setItem(CLOUD_TOKEN_KEY,legacy);return legacy;}
+    return "";
+  }catch(e){
+    try{return sessionStorage.getItem(CLOUD_TOKEN_KEY)||"";}catch(ignore){return "";}
+  }
+}
 
 async function cloudRequest(path, options={}){
   const headers={"Content-Type":"application/json",...(options.headers||{})};
@@ -99,16 +109,22 @@ function showCloudStatus(message,isError){
 }
 
 async function connectCloudflare(){
-  const password=prompt("Mot de passe CLOSETIA Cloud. Il ne sera pas enregistré.");
-  if(password===null) return;
-  if(!password){alert("Saisis le mot de passe pour te connecter.");return;}
+  let token=cloudToken();
   try{
-    const response=await fetch(CLOUD_API+"/api/closetia/login",{
-      method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password})
-    });
-    let login={};try{login=await response.json();}catch(e){}
-    if(!response.ok||login.ok===false||!login.token) throw new Error(login.erreur||login.error||"Connexion refusée. Vérifie le mot de passe.");
-    sessionStorage.setItem(CLOUD_TOKEN_KEY,login.token);
+    if(!token){
+      const password=prompt("Mot de passe CLOSETIA Cloud. Il ne sera pas enregistré en clair.");
+      if(password===null) return;
+      if(!password){alert("Saisis le mot de passe pour te connecter.");return;}
+      const response=await fetch(CLOUD_API+"/api/closetia/login",{
+        method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password})
+      });
+      let login={};try{login=await response.json();}catch(e){}
+      if(!response.ok||login.ok===false||!login.token) throw new Error(login.erreur||login.error||"Connexion refusée. Vérifie le mot de passe.");
+      token=login.token;
+      localStorage.setItem(CLOUD_TOKEN_KEY,token);
+    }else{
+      showCloudStatus("Session enregistrée trouvée. Vérification de la connexion…",false);
+    }
     showCloudStatus("Connexion établie. Vérification des données…",false);
     let remote=null;
     try{
@@ -133,7 +149,9 @@ async function connectCloudflare(){
     closeModal();
     openSettings();
   }catch(e){
-    try{sessionStorage.removeItem(CLOUD_TOKEN_KEY);}catch(ignore){}
+    if(/401|403|connexion requise|jeton|token|authentification/i.test(e.message)){
+      try{localStorage.removeItem(CLOUD_TOKEN_KEY);sessionStorage.removeItem(CLOUD_TOKEN_KEY);}catch(ignore){}
+    }
     showCloudStatus("Cloudflare indisponible : "+e.message,true);
     alert("Connexion/synchronisation impossible : "+e.message);
   }
@@ -141,7 +159,8 @@ async function connectCloudflare(){
 
 function disconnectCloudflare(){
   cloudReady=false;
-  try{sessionStorage.removeItem(CLOUD_TOKEN_KEY);}catch(e){}
+  clearTimeout(cloudSyncTimer);
+  try{localStorage.removeItem(CLOUD_TOKEN_KEY);sessionStorage.removeItem(CLOUD_TOKEN_KEY);}catch(e){}
   showCloudStatus("Déconnecté. Les données restent enregistrées sur cet appareil.",false);
 }
 
