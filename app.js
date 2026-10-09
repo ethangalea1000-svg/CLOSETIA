@@ -404,8 +404,35 @@ function friendsPage(){
 function addFriend(){var n=(($("friendName")||{}).value||"").trim();if(!n)return;var fs=db.settings.friends||[];if(fs.some(function(x){return String(x).toLowerCase()===n.toLowerCase()})){alert("Cet ami est déjà dans la liste.");return}db.settings.friends=fs.concat(n);save()}
 function removeFriend(i){db.settings.friends.splice(Number(i),1);save()}
 function smartWeather(){
-  var p=db.settings.profile||{}; if(!p.city){$("weatherBox").innerHTML="Ajoute ta ville dans Mon style.";return}
-  fetch("https://geocoding-api.open-meteo.com/v1/search?name="+encodeURIComponent(p.city)+"&count=1&language=fr&format=json").then(function(r){return r.json()}).then(function(g){var x=g.results&&g.results[0];if(!x)throw 0;return fetch("https://api.open-meteo.com/v1/forecast?latitude="+x.latitude+"&longitude="+x.longitude+"&current=temperature_2m,rain,wind_speed_10m&timezone=auto").then(function(r){return r.json()}).then(function(w){$("weatherBox").innerHTML="<b>🌤️ "+esc(x.name)+"</b><span>"+w.current.temperature_2m+"°C · pluie "+w.current.rain+" mm · vent "+w.current.wind_speed_10m+" km/h</span>"})}).catch(function(){$("weatherBox").textContent="Météo indisponible pour le moment."});
+  var p=db.settings.profile||{}, box=$("weatherBox");
+  if(!box)return;
+  if(!p.city){box.innerHTML="Ajoute ta ville dans <a href=\"#/profil\">Mon style</a> pour afficher la météo.";return}
+  box.textContent="Chargement de la météo…";
+  fetch("https://geocoding-api.open-meteo.com/v1/search?name="+encodeURIComponent(p.city)+"&count=1&language=fr&format=json")
+    .then(function(r){if(!r.ok)throw new Error("Géocodage indisponible");return r.json()})
+    .then(function(g){
+      var x=g.results&&g.results[0];if(!x)throw new Error("Ville introuvable");
+      var url="https://api.open-meteo.com/v1/forecast?latitude="+x.latitude+"&longitude="+x.longitude+"&current=temperature_2m,rain,wind_speed_10m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=3&timezone=auto";
+      return fetch(url).then(function(r){if(!r.ok)throw new Error("Météo indisponible");return r.json()}).then(function(w){
+        var current=w.current||{}, daily=w.daily||{};
+        var advice=Number(current.rain)>0||Number(daily.precipitation_probability_max&&daily.precipitation_probability_max[0])>=50?"Prévois une veste imperméable ou un parapluie.":Number(current.temperature_2m)<12?"Une couche chaude peut être utile.":Number(current.temperature_2m)>25?"Privilégie une tenue légère et confortable.":"Conditions plutôt modérées : choisis selon ton confort.";
+        var days=(daily.time||[]).map(function(day,i){var date=new Date(day+"T12:00:00");return "<span class=\"weather-day\"><b>"+date.toLocaleDateString("fr-FR",{weekday:"short"})+"</b> "+daily.temperature_2m_min[i]+"–"+daily.temperature_2m_max[i]+"°C · pluie "+(daily.precipitation_probability_max[i]??0)+"%</span>"}).join("");
+        box.innerHTML="<b>🌤️ "+esc(x.name)+"</b><span>Maintenant : "+current.temperature_2m+"°C · pluie "+current.rain+" mm · vent "+current.wind_speed_10m+" km/h</span><p>"+esc(advice)+"</p><div class=\"weather-days\">"+days+"</div><small>Données : <a href=\"https://open-meteo.com/\" target=\"_blank\" rel=\"noopener\">Open-Meteo</a></small>";
+      });
+    }).catch(function(){box.textContent="Météo indisponible. Vérifie la ville et ta connexion."});
+}
+function getColorHarmony(){
+  var box=$("harmonyResults");if(!box)return;
+  var chosen=db.palette[0]||((db.items.find(function(x){return x.color&&x.color!=="Autre"})||{}).color)||"Bleu";
+  var hex=(HEX[chosen]||HEX.Bleu).replace("#","");
+  box.innerHTML="<p class=\"muted\">Recherche de couleurs coordonnées…</p>";
+  fetch("https://www.thecolorapi.com/scheme?hex="+encodeURIComponent(hex)+"&mode=analogic&count=6&format=json")
+    .then(function(r){if(!r.ok)throw new Error("API couleurs indisponible");return r.json()})
+    .then(function(data){
+      var colors=data.colors||[];
+      if(!colors.length)throw new Error("Aucune couleur reçue");
+      box.innerHTML="<p>Harmonie basée sur <b>"+esc(chosen)+"</b> — palette analogique suggérée par The Color API.</p><div class=\"harmony-swatches\">"+colors.map(function(c){return "<div title=\""+esc(c.name&&c.name.value||c.hex.value)+"\"><i style=\"background:"+esc(c.hex.value)+"\"></i><b>"+esc(c.hex.value)+"</b><small>"+esc(c.name&&c.name.value||"Couleur")+"</small></div>"}).join("")+"</div><small>Les harmonies sont des suggestions de couleurs, pas une analyse de colorimétrie personnelle.</small>";
+    }).catch(function(){box.textContent="Service de couleurs indisponible. Tu peux toujours utiliser tes couleurs enregistrées."});
 }
 function home(){
   return `
@@ -486,7 +513,7 @@ function palette(){
         const p=total ? n/total*100 : 0;
         return `<div class="colorline"><i class="swatch" style="background:${HEX[c]}"></i><b>${c}</b><span>${n}</span><div class="bar"><i style="width:${p}%"></i></div></div>`;
       }).join("")}</div>
-      <div class="card" style="margin-top:15px"><h2>Mes couleurs préférées</h2><p class="muted">Clique pour les enregistrer.</p><div class="actions">${COLORS.filter(c=>c!=="Autre").map(c=>`<button class="swatch" title="${c}" style="background:${HEX[c]};outline:${db.palette.includes(c)?"3px solid var(--purple)":"none"}" data-action="palette" data-color="${c}"></button>`).join("")}</div></div>
+      <div class="card" style="margin-top:15px"><h2>Harmonies de couleurs</h2><p class="muted">Génère une palette coordonnée depuis ta première couleur favorite ou une couleur de ton dressing.</p><button class="primary" data-action="colorHarmony">Trouver une harmonie</button><div id="harmonyResults" style="margin-top:12px"></div></div><div class="card" style="margin-top:15px"><h2>Mes couleurs préférées</h2><p class="muted">Clique pour les enregistrer.</p><div class="actions">${COLORS.filter(c=>c!=="Autre").map(c=>`<button class="swatch" title="${c}" style="background:${HEX[c]};outline:${db.palette.includes(c)?"3px solid var(--purple)":"none"}" data-action="palette" data-color="${c}"></button>`).join("")}</div></div>
     </div>`;
 }
 
@@ -554,7 +581,7 @@ function bindPage(){
       else if(action==="wear") markWorn(itemId);
       else if(action==="generate") generateOutfit();
       else if(action==="deleteOutfit") deleteOutfit(itemId);
-      else if(action==="palette") togglePalette(el.dataset.color);
+      else if(action==="palette") togglePalette(el.dataset.color); else if(action==="colorHarmony") getColorHarmony();
       else if(action==="day") setCalendarDay(el.dataset.day);
       else if(action==="demo") demo(); else if(action==="prefColor") togglePrefColor(el.dataset.color); else if(action==="searchBrands") searchBrands(); else if(action==="toggleBrand") toggleBrand(el.dataset.brand); else if(action==="addManualBrand") addManualBrand(); else if(action==="addFriend") addFriend(); else if(action==="removeFriend") removeFriend(el.dataset.id);
     });
