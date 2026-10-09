@@ -425,6 +425,10 @@ function generateOutfit(){
     if(item.season===season||item.season==="Toute l'année")n+=2;
     if(item.occasion===occasion)n+=2;
     if(profile.models&&profile.models.some(m=>String(item.name||"").toLowerCase().includes(m.toLowerCase())))n+=1;
+    var description=(String(item.name||"")+" "+String(item.notes||"")+" "+String(item.occasion||"")).toLowerCase();
+    var impressionWords={"Discret":["discret","sobre","minimaliste","uni"],"Élégant":["élégant","chic","chemise","blazer","classique"],"Sportif":["sport","sneaker","jogging","technique"],"Créatif":["créatif","artistique","coloré","original"],"Décontracté":["casual","décontracté","confort"],"Sérieux":["sérieux","formel","classique","chemise"],"Confiant":["fort","structuré","marqué","audacieux"],"Original":["original","graphique","imprimé","motif"],"Classique":["classique","intemporel","sobre"],"Streetwear":["streetwear","oversize","logo","sneaker"]};
+    if(Array.isArray(profile.impressions))profile.impressions.forEach(function(pref){if((impressionWords[pref]||[]).some(function(word){return description.includes(word)}))n+=1.5});
+    if(Array.isArray(profile.patterns)&&profile.patterns.some(function(pattern){return description.includes(pattern.toLowerCase())}))n+=2;
     if(item.wears>0)n+=Math.min(item.wears,5)*.15;
     return n;
   }
