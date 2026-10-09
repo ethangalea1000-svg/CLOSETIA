@@ -336,23 +336,24 @@ function renderBrandResults(results){
 }
 async function searchBrands(){
   var q=(($("brandSearch")||{}).value||"").trim();
-  if(q.length<2){renderBrandResults([]);return}
-  var box=$("brandResults"); box.innerHTML="<p class="muted">Recherche des marques…</p>";
+  var box=$("brandResults");
+  if(!box)return;
+  if(q.length<2){box.innerHTML='<p class="muted">Saisis au moins 2 caractères.</p>';return}
+  box.innerHTML='<p class="muted">Recherche des marques…</p>';
   try{
     var url="https://www.wikidata.org/w/api.php?action=wbsearchentities&search="+encodeURIComponent(q)+"&language=fr&uselang=fr&type=item&limit=50&format=json&origin=*";
     var r=await fetch(url);
+    if(!r.ok)throw new Error("HTTP "+r.status);
     var data=await r.json(), seen={}, out=[];
     (data.search||[]).forEach(function(x){
-      var n=(x.label||"").trim();
-      var d=(x.description||"").toLowerCase();
-      var text=(n+" "+d).toLowerCase();
-      if(n && !seen[n.toLowerCase()] && (n.toLowerCase().includes(q.toLowerCase()) || d.includes("marque") || d.includes("fashion") || d.includes("vêtement") || d.includes("clothing") || d.includes("mode") || d.includes("sport") || d.includes("cosmétique"))){
+      var n=(x.label||"").trim(), d=(x.description||"").toLowerCase();
+      if(n && !seen[n.toLowerCase()] && (n.toLowerCase().includes(q.toLowerCase()) || /marque|fashion|vêtement|clothing|mode|sport|cosmétique|entreprise|fabricant/.test(d))){
         seen[n.toLowerCase()]=1; out.push({name:n});
       }
     });
     renderBrandResults(out);
   }catch(e){
-    box.innerHTML="<p class="muted">Recherche indisponible. Tu peux ajouter la marque manuellement.</p>";
+    box.innerHTML='<p class="muted">La recherche en ligne est indisponible. Vérifie ta connexion ou ajoute la marque manuellement.</p>';
   }
 }
 function toggleBrand(name){
