@@ -61,7 +61,7 @@ const CLOUD_TOKEN_KEY = "closetia.cloud.session";
 let cloudSyncTimer = null;
 let cloudSyncRunning = false;
 let cloudReady = false;
-let cloudStatusText = cloudTokenStatusInitial();
+let cloudStatusText = cloudToken() ? "Vérification de la connexion Cloudflare…" : cloudTokenStatusInitial();
 let cloudStatusIsError = false;
 function cloudTokenStatusInitial(){ return "Non connecté. Les données restent locales."; }
 
