@@ -56,9 +56,99 @@ function load(){
   }
 }
 
+const CLOUD_API = "https://cloud-manager-gateway.ethan-galea1000.workers.dev";
+const CLOUD_TOKEN_KEY = "closetia.cloud.session";
+let cloudSyncTimer = null;
+let cloudSyncRunning = false;
+let cloudReady = false;
+
+function cloudToken(){ try{return sessionStorage.getItem(CLOUD_TOKEN_KEY)||"";}catch(e){return "";} }
+
+async function cloudRequest(path, options={}){
+  const headers={"Content-Type":"application/json",...(options.headers||{})};
+  const token=cloudToken();
+  if(token) headers.Authorization="Bearer "+token;
+  const response=await fetch(CLOUD_API+path,{...options,headers});
+  let body={};
+  try{body=await response.json();}catch(e){}
+  if(!response.ok || body.ok===false) throw new Error(body.erreur||body.error||("Erreur Cloudflare HTTP "+response.status));
+  return body;
+}
+
+function queueCloudSync(){
+  if(!cloudToken() || !cloudReady) return;
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer=setTimeout(()=>syncCloudNow().catch(e=>{
+    console.warn("CLOSETIA Cloud sync:",e);
+    showCloudStatus("Synchronisation en attente : "+e.message,true);
+  }),900);
+}
+
+async function syncCloudNow(){
+  if(!cloudToken() || !cloudReady || cloudSyncRunning) return;
+  cloudSyncRunning=true;
+  try{
+    await cloudRequest("/api/closetia/preferences/main",{method:"PUT",body:JSON.stringify({data:db})});
+    showCloudStatus("Synchronisé avec Cloudflare D1.",false);
+  }finally{cloudSyncRunning=false;}
+}
+
+function showCloudStatus(message,isError){
+  const el=$("cloudStatus");
+  if(el){el.textContent=message;el.style.color=isError?"#b45309":"";}
+}
+
+async function connectCloudflare(){
+  const password=prompt("Mot de passe CLOSETIA Cloud. Il ne sera pas enregistré.");
+  if(password===null) return;
+  if(!password){alert("Saisis le mot de passe pour te connecter.");return;}
+  try{
+    const response=await fetch(CLOUD_API+"/api/closetia/login",{
+      method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password})
+    });
+    let login={};try{login=await response.json();}catch(e){}
+    if(!response.ok||login.ok===false||!login.token) throw new Error(login.erreur||login.error||"Connexion refusée. Vérifie le mot de passe.");
+    sessionStorage.setItem(CLOUD_TOKEN_KEY,login.token);
+    showCloudStatus("Connexion établie. Vérification des données…",false);
+    let remote=null;
+    try{
+      const result=await cloudRequest("/api/closetia/preferences/main",{method:"GET"});
+      const candidate=result.record||result.item||result.data;
+      remote=candidate&&candidate.data&&typeof candidate.data==="object"?candidate.data:
+        candidate&&Array.isArray(candidate.items)?candidate:null;
+    }catch(e){
+      if(!/404|introuvable|not found|aucun|absent/i.test(e.message)) throw e;
+    }
+    if(remote&&Array.isArray(remote.items)){
+      db=remote;
+      db.settings={...fresh().settings,...(db.settings||{}),profile:{...fresh().settings.profile,...((db.settings&&db.settings.profile)||{})},colorimetry:{...fresh().settings.colorimetry,...((db.settings&&db.settings.colorimetry)||{})},friends:Array.isArray(db.settings?.friends)?db.settings.friends:[],shared:Array.isArray(db.settings?.shared)?db.settings.shared:[]};
+      localStorage.setItem(KEY,JSON.stringify(db));
+      render();
+      cloudReady=true;
+      showCloudStatus("Données Cloudflare chargées et synchronisées.",false);
+    }else{
+      cloudReady=true;
+      await syncCloudNow();
+    }
+    closeModal();
+    openSettings();
+  }catch(e){
+    try{sessionStorage.removeItem(CLOUD_TOKEN_KEY);}catch(ignore){}
+    showCloudStatus("Cloudflare indisponible : "+e.message,true);
+    alert("Connexion/synchronisation impossible : "+e.message);
+  }
+}
+
+function disconnectCloudflare(){
+  cloudReady=false;
+  try{sessionStorage.removeItem(CLOUD_TOKEN_KEY);}catch(e){}
+  showCloudStatus("Déconnecté. Les données restent enregistrées sur cet appareil.",false);
+}
+
 function save(shouldRender=true){
   try{ localStorage.setItem(KEY,JSON.stringify(db)); }
   catch(e){ alert("Impossible d'enregistrer les données locales. Vérifie l'espace disponible."); console.error(e); return; }
+  queueCloudSync();
   if(shouldRender) render();
 }
 
@@ -276,7 +366,15 @@ function openSettings(){
   modal.innerHTML=`
     <div class="modal">
       <div class="modalhead"><h2>Réglages & données</h2><button class="ghost" id="closeModal">✕</button></div>
-      <p class="muted">Les données de CLOSETIA restent sur cet appareil tant que tu ne les exportes pas.</p>
+      <p class="muted">Les données sont conservées sur cet appareil. Tu peux aussi activer la synchronisation Cloudflare D1.</p>
+      <div class="card" style="margin:12px 0;padding:14px">
+        <h3>Synchronisation Cloudflare</h3>
+        <p id="cloudStatus" class="muted">${cloudToken() ? "Session Cloudflare active dans cet onglet." : "Non connecté. Les données restent locales."}</p>
+        <div class="actions">
+          <button class="primary" id="connectCloud">Connecter / synchroniser</button>
+          <button class="ghost" id="disconnectCloud">Déconnecter</button>
+        </div>
+      </div>
       <div class="actions">
         <button class="ghost" id="exportJSON">Exporter JSON</button>
         <button class="ghost" id="exportCSV">Exporter CSV</button>
@@ -287,6 +385,8 @@ function openSettings(){
     </div>`;
   document.body.appendChild(modal);
   $("closeModal").onclick=closeModal;
+  $("connectCloud").onclick=connectCloudflare;
+  $("disconnectCloud").onclick=disconnectCloudflare;
   $("exportJSON").onclick=exportJSON;
   $("exportCSV").onclick=exportCSV;
   $("importJSON").onclick=()=>{closeModal(); importFile.value=""; importFile.click();};
