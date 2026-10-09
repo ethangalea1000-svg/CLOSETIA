@@ -61,6 +61,9 @@ const CLOUD_TOKEN_KEY = "closetia.cloud.session";
 let cloudSyncTimer = null;
 let cloudSyncRunning = false;
 let cloudReady = false;
+let cloudStatusText = cloudTokenStatusInitial();
+let cloudStatusIsError = false;
+function cloudTokenStatusInitial(){ return "Non connecté. Les données restent locales."; }
 
 function cloudToken(){
   try{
@@ -112,6 +115,8 @@ function setCloudIndicator(state,label,title){
   el.setAttribute("aria-label",title||label);
 }
 function showCloudStatus(message,isError){
+  cloudStatusText=message;
+  cloudStatusIsError=Boolean(isError);
   const el=$("cloudStatus");
   if(el){el.textContent=message;el.style.color=isError?"#b45309":"";}
   if(isError || /indisponible|en attente|reconnect/i.test(message)){
@@ -426,7 +431,7 @@ function openSettings(){
       <p class="muted">Les données sont conservées sur cet appareil. Tu peux aussi activer la synchronisation Cloudflare D1.</p>
       <div class="card" style="margin:12px 0;padding:14px">
         <h3>Synchronisation Cloudflare</h3>
-        <p id="cloudStatus" class="muted">${cloudToken() ? "Session enregistrée. Vérification de la connexion…" : "Non connecté. Les données restent locales."}</p>
+        <p id="cloudStatus" class="muted" style="color:${cloudStatusIsError?"#b45309":""}">${esc(cloudStatusText)}</p>
         <div class="actions">
           <button class="primary" id="connectCloud">Connecter / synchroniser</button>
           <button class="ghost" id="disconnectCloud">Déconnecter</button>
