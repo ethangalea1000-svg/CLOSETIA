@@ -14,7 +14,7 @@ const importFile = $("importFile");
 
 let db = load();
 
-function fresh(){ return {items:[],outfits:[],calendar:{},palette:[],settings:{profile:{name:"",city:"",styles:[],models:[],brands:[],budget:50,weather:true,colors:[]},colorimetry:{palette:[],status:"Non définie"},friends:[],shared:[]}}; }
+function fresh(){ return {items:[],outfits:[],calendar:{},palette:[],settings:{profile:{name:"",city:"",styles:[],models:[],brands:[],budget:50,weather:true,colors:[]},colorimetry:{palette:[],status:"Non définie"},friends:[],shared:[],lookTracker:[]}}; }
 
 function makeId(){
   if(window.crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -715,6 +715,40 @@ function celebrityLooksPage(){
   }).join("")+"</div><p class=\"muted celebrity-footnote\">Les photos et titres sont intégrés dans la page. Les dates sont affichées lorsqu’elles sont fournies par la source ; certains résultats peuvent être plus anciens.</p></div>";
 }
 
+function sameClothesPage(){
+  var tracker=Array.isArray(db.settings.lookTracker)?db.settings.lookTracker:[];
+  function norm(s){return String(s||"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim()}
+  var rows=tracker.map(function(ref){
+    var owned=db.items.find(function(item){return (ref.ownedId&&item.id===ref.ownedId)||norm(item.name)===norm(ref.name)});
+    return {ref:ref,owned:owned};
+  });
+  var ownedRows=rows.filter(function(x){return x.owned}), missingRows=rows.filter(function(x){return !x.owned});
+  return '<div class="section"><span class="eyebrow">COPIER UN LOOK</span><h1>Les mêmes vêtements</h1><p class="muted">Note les pièces précises d’une tenue de référence. CLOSETIA les compare à ton dressing : les pièces retrouvées passent dans « Je les ai », les autres restent dans « Il me manque ».</p>'+
+    '<div class="card look-tracker-form"><h2>Ajouter une pièce à retrouver</h2><div class="filters"><label>Vêtement<input id="lookItemName" placeholder="Ex. veste en cuir noire"></label><label>Catégorie<select id="lookItemCategory">'+CATS.map(function(x){return '<option>'+esc(x)+'</option>'}).join("")+'</select></label><label>Couleur<select id="lookItemColor">'+COLORS.map(function(x){return '<option>'+esc(x)+'</option>'}).join("")+'</select></label><label>Inspiré de<input id="lookItemSource" placeholder="Ex. Zendaya, photo…"></label></div><button class="primary" data-action="addLookItem">+ Ajouter à ma liste</button><p class="muted">Astuce : décris la pièce aussi précisément que possible. Pour l’instant, les correspondances automatiques reposent sur le nom du vêtement.</p></div>'+
+    '<div class="look-tracker-columns"><section class="card"><h2>Je les ai <span class="look-count">'+ownedRows.length+'</span></h2>'+
+    (ownedRows.length?ownedRows.map(function(x){return '<article class="look-item"><div><b>'+esc(x.ref.name)+'</b><p class="muted">'+esc(x.ref.source||"Look de référence")+' · retrouvé dans ton dressing : '+esc(x.owned.name)+'</p></div><button class="ghost" data-action="edit" data-id="'+esc(x.owned.id)+'">Voir</button><button class="danger" data-action="removeLookItem" data-id="'+esc(x.ref.id)+'">Retirer</button></article>'}).join(""):'<p class="muted">Aucune pièce retrouvée pour le moment.</p>')+'</section>'+
+    '<section class="card"><h2>Il me manque <span class="look-count">'+missingRows.length+'</span></h2>'+
+    (missingRows.length?missingRows.map(function(x){return '<article class="look-item"><div><b>'+esc(x.ref.name)+'</b><p class="muted">'+esc(x.ref.category)+' · '+esc(x.ref.color)+' · '+esc(x.ref.source||"Look de référence")+'</p></div><button class="primary" data-action="findLookItem" data-id="'+esc(x.ref.id)+'">Je l’ai ajouté</button><button class="danger" data-action="removeLookItem" data-id="'+esc(x.ref.id)+'">Retirer</button></article>'}).join(""):'<p class="muted">Aucun vêtement manquant : ajoute les pièces de la tenue que tu veux reproduire.</p>')+'</section></div></div>';
+}
+function addLookItem(){
+  var name=(($("lookItemName")||{}).value||"").trim();
+  if(!name){alert("Écris le nom de la pièce à retrouver.");return}
+  db.settings.lookTracker=Array.isArray(db.settings.lookTracker)?db.settings.lookTracker:[];
+  db.settings.lookTracker.push({id:makeId(),name:name,category:$("lookItemCategory").value,color:$("lookItemColor").value,source:(($("lookItemSource")||{}).value||"").trim(),createdAt:new Date().toISOString()});
+  save();
+}
+function removeLookItem(id){
+  db.settings.lookTracker=(db.settings.lookTracker||[]).filter(function(x){return x.id!==id});
+  save();
+}
+function findLookItem(id){
+  var ref=(db.settings.lookTracker||[]).find(function(x){return x.id===id});
+  if(!ref)return;
+  var found=db.items.find(function(x){return String(x.name).trim().toLowerCase()===String(ref.name).trim().toLowerCase()});
+  if(found){alert("Cette pièce existe déjà dans ton dressing. Elle apparaîtra dans « Je les ai ».");render();return}
+  var item=normalize({name:ref.name,category:ref.category,color:ref.color,occasion:"Tous les jours"});
+  db.items.push(item);ref.ownedId=item.id;save();
+}
 function reproduceCelebrityLook(index){
   var celeb=celebrityData()[Number(index)];
   if(!celeb){alert("Cette inspiration n’est pas disponible.");return}
@@ -994,7 +1028,7 @@ function render(){
   const selectionEnd=active&&typeof active.selectionEnd==="number"?active.selectionEnd:null;
   document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("active",a.getAttribute("href")==="#/"+page));
   try{
-    app.innerHTML=page==="dressing"?dressing():page==="tenues"?outfits():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="stars"?celebrityLooksPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():home();
+    app.innerHTML=page==="dressing"?dressing():page==="tenues"?outfits():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="stars"?celebrityLooksPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():page==="memes"?sameClothesPage():home();
     bindPage();
     if(page==="stars") setTimeout(loadCelebrityLooks,0);
     if(activeId){
@@ -1029,7 +1063,7 @@ function bindPage(){
       else if(action==="favorite") toggleFavorite(itemId);
       else if(action==="wear") markWorn(itemId);
       else if(action==="generate") generateOutfit();
-      else if(action==="reproduceCelebrity") reproduceCelebrityLook(el.dataset.id);
+      else if(action==="reproduceCelebrity") reproduceCelebrityLook(el.dataset.id); else if(action==="addLookItem") addLookItem(); else if(action==="removeLookItem") removeLookItem(itemId); else if(action==="findLookItem") findLookItem(itemId);
       else if(action==="deleteOutfit") deleteOutfit(itemId);
       else if(action==="palette") togglePalette(el.dataset.color); else if(action==="colorHarmony") getColorHarmony();
       else if(action==="colorimetryColor") toggleColorimetryColor(el.dataset.color);
