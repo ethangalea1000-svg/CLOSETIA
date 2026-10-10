@@ -34,6 +34,22 @@ function challenge(message = "Authentification requise.") {
 export async function onRequest(context) {
   const url = new URL(context.request.url);
   const pathname = url.pathname.toLowerCase();
+
+  // Same-origin API proxy: browsers call Pages, Pages calls the Worker server-to-server.
+  // This avoids browser CORS preflight failures without changing the existing Worker or D1.
+  if (pathname.startsWith("/api/closetia/")) {
+    const upstreamUrl = new URL(url.pathname + url.search, "https://cloud-manager-gateway.ethan-galea1000.workers.dev");
+    const upstreamRequest = new Request(upstreamUrl.toString(), context.request);
+    const upstreamResponse = await fetch(upstreamRequest);
+    const responseHeaders = new Headers(upstreamResponse.headers);
+    responseHeaders.set("Cache-Control", "no-store");
+    return new Response(upstreamResponse.body, {
+      status: upstreamResponse.status,
+      statusText: upstreamResponse.statusText,
+      headers: responseHeaders
+    });
+  }
+
   if (!ADMIN_PATHS.has(pathname)) return context.next();
 
   const expectedUser = context.env.ADMIN_USER;
