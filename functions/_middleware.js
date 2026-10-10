@@ -33,7 +33,7 @@ function challenge(message = "Authentification requise.") {
 
 export async function onRequest(context) {
   const url = new URL(context.request.url);
-  const pathname = url.pathname.toLowerCase().replace(/\\/+$/, "") || "/";
+  const pathname = url.pathname.toLowerCase();
   if (!ADMIN_PATHS.has(pathname)) return context.next();
 
   const expectedUser = context.env.ADMIN_USER;
