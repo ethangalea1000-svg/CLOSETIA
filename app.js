@@ -278,28 +278,40 @@ function guess(name){
   return {category,color};
 }
 
+function compressImageData(data, maxSide=640, quality=0.55){
+  if(typeof data!=="string" || !data.startsWith("data:image/") || data.length<45000) return Promise.resolve(data||"");
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const scale=Math.min(1,maxSide/Math.max(img.naturalWidth,img.naturalHeight));
+        const canvas=document.createElement("canvas");
+        canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
+        canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+        const ctx=canvas.getContext("2d");
+        if(!ctx) return resolve(data);
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        const compressed=canvas.toDataURL("image/jpeg",quality);
+        resolve(compressed.length<data.length?compressed:data);
+      }catch(e){console.warn("CLOSETIA image compression:",e);resolve(data)}
+    };
+    img.onerror=()=>resolve(data);
+    img.src=data;
+  });
+}
+
 function addFiles(files){
   Array.from(files || []).forEach(file=>{
     if(!file.type || !file.type.startsWith("image/")) return;
     const baseName=file.name.replace(/\.[^.]+$/,"").replace(/[_-]+/g," ").trim();
     const g=guess(baseName);
     const reader=new FileReader();
-    reader.onload=()=>{
-      const img=new Image();
-      img.onload=()=>{
-        try{
-          const scale=Math.min(1,1200/Math.max(img.naturalWidth,img.naturalHeight));
-          const canvas=document.createElement("canvas");
-          canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
-          canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
-          canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
-          const data=canvas.toDataURL("image/jpeg",0.78);
-          db.items.push(normalize({name:(baseName && !/^\d[\d _-]*$/.test(baseName))?baseName:"Vêtement",category:g.category,color:g.color,image:data}));
-          save();
-        }catch(e){alert("Photo trop lourde pour être enregistrée. Essaie une image plus petite.");console.error(e)}
-      };
-      img.onerror=()=>alert("Impossible de traiter la photo "+file.name);
-      img.src=reader.result;
+    reader.onload=async()=>{
+      try{
+        const data=await compressImageData(reader.result,640,0.55);
+        db.items.push(normalize({name:(baseName && !/^\d[\d _-]*$/.test(baseName))?baseName:"Vêtement",category:g.category,color:g.color,image:data}));
+        save();
+      }catch(e){alert("Photo trop lourde pour être enregistrée. Essaie une image plus petite.");console.error(e)}
     };
     reader.onerror=()=>alert("Impossible de lire "+file.name);
     reader.readAsDataURL(file);
@@ -332,14 +344,19 @@ function exportCSV(){
 function importJSON(file){
   if(!file) return;
   const reader=new FileReader();
-  reader.onload=()=>{
+  reader.onload=async()=>{
     try{
       const x=JSON.parse(reader.result);
       if(!Array.isArray(x.items)) throw new Error("items manquants");
       const defaults=fresh();
       const incoming=x.settings && typeof x.settings==="object"?x.settings:{};
+      const importedItems=await Promise.all(x.items.map(async item=>{
+        const normalized=normalize(item);
+        normalized.image=await compressImageData(normalized.image,640,0.55);
+        return normalized;
+      }));
       db={
-        items:x.items.map(normalize),
+        items:importedItems,
         outfits:Array.isArray(x.outfits)?x.outfits:[],
         calendar:x.calendar && typeof x.calendar==="object"?x.calendar:{},
         palette:Array.isArray(x.palette)?x.palette:[],
