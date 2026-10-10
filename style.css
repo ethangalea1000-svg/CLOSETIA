@@ -94,3 +94,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .celebrity-recreate{width:100%;margin:12px 0 6px}
 .celebrity-recreate-note{font-size:12px;margin:0 0 12px}
 .inspired-outfit-highlight{outline:2px solid var(--purple,#8064d8);outline-offset:3px}
+
+
+/* Page dédiée : mêmes vêtements et pièces manquantes */
+.look-tracker-form{margin:18px 0}.look-tracker-form label{display:flex;flex-direction:column;gap:6px;min-width:150px;flex:1}.look-tracker-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:16px}.look-tracker-columns h2{display:flex;align-items:center;justify-content:space-between;font-size:1.05rem}.look-count{display:inline-grid;place-items:center;min-width:28px;height:28px;border-radius:50%;background:var(--soft);font-size:13px}.look-item{display:flex;align-items:center;flex-wrap:wrap;gap:8px;justify-content:space-between;padding:12px 0;border-top:1px solid var(--line)}.look-item>div{flex:1;min-width:120px}.look-item p{margin:4px 0 0;font-size:12px}.look-item button{font-size:12px;padding:7px 9px}@media(max-width:650px){.look-tracker-columns{grid-template-columns:1fr}.look-item{justify-content:flex-start}}
