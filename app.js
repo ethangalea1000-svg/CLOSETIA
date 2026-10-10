@@ -155,6 +155,14 @@ async function checkCloudSession(){
     const remote=candidate&&candidate.data&&typeof candidate.data==="object"?candidate.data:
       candidate&&Array.isArray(candidate.items)?candidate:null;
     if(remote&&Array.isArray(remote.items)){
+      // Ne jamais remplacer un dressing local non vide par un snapshot Cloud vide.
+      // On garde les pièces locales et on les renvoie vers D1 pour éviter une perte silencieuse.
+      if(db.items.length>0 && remote.items.length===0){
+        showCloudStatus("Dressing local conservé : le Cloud contient 0 vêtement. Synchronisation de tes données locales…",true);
+        cloudReady=true;
+        await syncCloudNow();
+        return;
+      }
       db={
         ...fresh(),
         ...remote,
@@ -865,8 +873,8 @@ function smartWeather(){
     .then(function(r){if(!r.ok)throw new Error("Géocodage indisponible");return r.json()})
     .then(function(g){var x=g.results&&g.results[0];if(!x)throw new Error("Ville introuvable");return loadAt(x.latitude,x.longitude,x.name)})
     .catch(function(){
-      var normalized=city.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
-      if(normalized.includes("saint-remy-de-provence")){
+      var normalized=city.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
+      if(normalized.includes("saint remy de provence")){
         loadAt(43.788,4.831,"Saint-Rémy-de-Provence").catch(function(){box.innerHTML='Météo temporairement indisponible. Les autres fonctions restent disponibles. <button class="ghost" onclick="location.reload()">Réessayer</button>'});
       }else{
         box.innerHTML='Météo indisponible pour '+esc(city)+'. Vérifie le nom de la ville. <button class="ghost" onclick="location.reload()">Réessayer</button>';
