@@ -858,28 +858,48 @@ function smartWeather(){
   var p=db.settings.profile||{},box=$("weatherBox");
   if(!box)return;
   var city=(p.city||"Saint-Rémy-de-Provence").trim();
-  box.textContent="Chargement de la météo pour "+city+"…";
+  box.textContent="Recherche de la ville française : "+city+"…";
   function showForecast(w,name){
     var current=w.current||{},daily=w.daily||{};
     var advice=Number(current.rain)>0||Number(daily.precipitation_probability_max&&daily.precipitation_probability_max[0])>=50?"Prévois une veste imperméable ou un parapluie.":Number(current.temperature_2m)<12?"Une couche chaude peut être utile.":Number(current.temperature_2m)>25?"Privilégie une tenue légère et confortable.":"Conditions plutôt modérées : choisis selon ton confort.";
     var days=(daily.time||[]).map(function(day,i){return '<span class="weather-day"><b>'+new Date(day+"T12:00:00").toLocaleDateString("fr-FR",{weekday:"short"})+'</b> '+daily.temperature_2m_min[i]+'–'+daily.temperature_2m_max[i]+'°C · pluie '+(daily.precipitation_probability_max[i]??0)+'%</span>'}).join("");
-    box.innerHTML="<b>🌤️ "+esc(name)+"</b><span>Maintenant : "+current.temperature_2m+"°C · pluie "+current.rain+" mm · vent "+current.wind_speed_10m+" km/h</span><p>"+esc(advice)+"</p><div class='weather-days'>"+days+"</div><small>Données : Open-Meteo</small>";
+    box.innerHTML="<b>🌤️ "+esc(name)+"</b><span>Maintenant : "+current.temperature_2m+"°C · pluie "+current.rain+" mm · vent "+current.wind_speed_10m+" km/h</span><p>"+esc(advice)+"</p><div class='weather-days'>"+days+"</div><small>Prévisions Open-Meteo · recherche de communes françaises</small>";
   }
   function loadAt(lat,lon,name){
     var url="https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&current=temperature_2m,rain,wind_speed_10m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=3&timezone=Europe%2FParis";
-    return fetch(url).then(function(r){if(!r.ok)throw new Error("Météo indisponible");return r.json()}).then(function(w){showForecast(w,name)});
+    return fetch(url).then(function(r){if(!r.ok)throw new Error("Prévisions météo indisponibles");return r.json()}).then(function(w){showForecast(w,name)});
   }
-  fetch("https://geocoding-api.open-meteo.com/v1/search?name="+encodeURIComponent(city)+"&count=1&language=fr&format=json")
-    .then(function(r){if(!r.ok)throw new Error("Géocodage indisponible");return r.json()})
-    .then(function(g){var x=g.results&&g.results[0];if(!x)throw new Error("Ville introuvable");return loadAt(x.latitude,x.longitude,x.name)})
-    .catch(function(){
-      var normalized=city.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
-      if(normalized.includes("saint remy de provence")){
-        loadAt(43.788,4.831,"Saint-Rémy-de-Provence").catch(function(){box.innerHTML='Météo temporairement indisponible. Les autres fonctions restent disponibles. <button class="ghost" onclick="location.reload()">Réessayer</button>'});
-      }else{
-        box.innerHTML='Météo indisponible pour '+esc(city)+'. Vérifie le nom de la ville. <button class="ghost" onclick="location.reload()">Réessayer</button>';
-      }
+  function normalizeCity(value){
+    return String(value||"").toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
+  }
+  function searchFrance(query){
+    var url="https://geocoding-api.open-meteo.com/v1/search?name="+encodeURIComponent(query)+"&count=10&language=fr&format=json&countryCode=FR";
+    return fetch(url).then(function(r){if(!r.ok)throw new Error("Recherche des villes françaises indisponible");return r.json()});
+  }
+  searchFrance(city).then(function(g){
+    var results=(g.results||[]).filter(function(x){return !x.country_code||String(x.country_code).toUpperCase()==="FR"});
+    if(!results.length){
+      var cleaned=normalizeCity(city);
+      if(!cleaned||cleaned===city.toLowerCase())throw new Error("Ville française introuvable");
+      return searchFrance(cleaned).then(function(second){
+        var matches=(second.results||[]).filter(function(x){return !x.country_code||String(x.country_code).toUpperCase()==="FR"});
+        if(!matches.length)throw new Error("Ville française introuvable");
+        return matches;
+      });
+    }
+    return results;
+  }).then(function(results){
+    var wanted=normalizeCity(city);
+    results.sort(function(a,b){
+      var an=normalizeCity(a.name),bn=normalizeCity(b.name);
+      return (an===wanted?-2:an.startsWith(wanted)?-1:0)-(bn===wanted?-2:bn.startsWith(wanted)?-1:0);
     });
+    var x=results[0];
+    var label=x.name+(x.admin1?", "+x.admin1:"");
+    return loadAt(x.latitude,x.longitude,label);
+  }).catch(function(){
+    box.innerHTML='Météo indisponible pour '+esc(city)+'. Vérifie l’orthographe ou ajoute le nom du département (ex. « Saint-Martin, Guadeloupe »). La recherche couvre les villes françaises disponibles dans le géocodeur. <button class="ghost" onclick="location.reload()">Réessayer</button>';
+  });
 }
 function getColorHarmony(){
   var box=$("harmonyResults");if(!box)return;
