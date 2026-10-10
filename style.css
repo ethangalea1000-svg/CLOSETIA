@@ -148,3 +148,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .admin-note{border-color:#fed7aa;background:#fffaf5}
 .admin-note h2{color:#9a3412}
 @media(max-width:600px){.admin-panel{padding:17px}.admin-line{flex-direction:column;gap:5px}.admin-line strong{text-align:left}}
+
+/* En-tête minimal de l’espace administrateur protégé */
+.admin-topbar{gap:16px}
+.admin-top-label{font-size:11px;font-weight:800;letter-spacing:1.3px;color:var(--muted);white-space:nowrap}
+.admin-back{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;padding:9px 13px;border:1px solid var(--line);border-radius:11px;color:var(--ink);background:#fff}
+@media(max-width:720px){.admin-topbar{height:auto;min-height:64px;flex-wrap:wrap;padding:12px 4%;gap:10px}.admin-top-label{order:3;width:100%}.admin-back{margin-left:auto}}
