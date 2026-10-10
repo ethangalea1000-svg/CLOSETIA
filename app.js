@@ -694,26 +694,63 @@ function starPage(){
 }
 function celebrityData(){
   return [
-    {name:"Zendaya",source:"Vogue"},
-    {name:"Timothée Chalamet",source:"GQ"},
-    {name:"Jenna Ortega",source:"Vogue"},
-    {name:"Dua Lipa",source:"Vogue"},
-    {name:"Sabrina Carpenter",source:"People"},
-    {name:"A$AP Rocky",source:"GQ"},
-    {name:"Bella Hadid",source:"Vogue"},
-    {name:"Ryan Gosling",source:"GQ"},
-    {name:"Taylor Swift",source:"Vogue"},
-    {name:"Pedro Pascal",source:"GQ"},
-    {name:"Anya Taylor-Joy",source:"Vogue"},
-    {name:"Bad Bunny",source:"GQ"}
+    {name:"Zendaya",source:"Vogue",vibe:"Élégant, audacieux, pièces structurées",keywords:["élégant","chic","blazer","chemise","structuré","noir","tailleur","original"]},
+    {name:"Timothée Chalamet",source:"GQ",vibe:"Créatif, streetwear, silhouettes originales",keywords:["streetwear","oversize","original","graphique","veste","sneaker","rouge","noir"]},
+    {name:"Jenna Ortega",source:"Vogue",vibe:"Sombre, alternatif, rock",keywords:["noir","rock","alternatif","veste","cuir","boots","graphique","sombre"]},
+    {name:"Dua Lipa",source:"Vogue",vibe:"Pop, tendance, coloré",keywords:["coloré","original","imprimé","tendance","crop","jean","sneaker","brillant"]},
+    {name:"Sabrina Carpenter",source:"People",vibe:"Rétro, doux, élégant",keywords:["rétro","élégant","jupe","robe","pastel","rose","chic","classique"]},
+    {name:"A$AP Rocky",source:"GQ",vibe:"Streetwear, superpositions, accessoires",keywords:["streetwear","oversize","logo","veste","sneaker","accessoire","original","large"]},
+    {name:"Bella Hadid",source:"Vogue",vibe:"Minimaliste, vintage, décontracté",keywords:["minimaliste","vintage","sobre","jean","veste","basiques","classique","décontracté"]},
+    {name:"Ryan Gosling",source:"GQ",vibe:"Classique, épuré, chic décontracté",keywords:["classique","sobre","chemise","blazer","chic","neutre","élégant","intemporel"]},
+    {name:"Taylor Swift",source:"Vogue",vibe:"Classique, romantique, couleurs douces",keywords:["classique","romantique","pastel","robe","jupe","fleurs","élégant","rouge"]},
+    {name:"Pedro Pascal",source:"GQ",vibe:"Décontracté, masculin, superpositions",keywords:["décontracté","veste","chemise","jean","neutre","confort","classique","superposition"]},
+    {name:"Anya Taylor-Joy",source:"Vogue",vibe:"Éditorial, élégant, formes marquées",keywords:["élégant","chic","structuré","original","tailleur","noir","robe","graphique"]},
+    {name:"Bad Bunny",source:"GQ",vibe:"Streetwear, expressif, couleurs et imprimés",keywords:["streetwear","coloré","imprimé","oversize","logo","original","sneaker","graphique"]}
   ];
 }
 function celebrityLooksPage(){
   var celebs=celebrityData();
   return "<div class=\"section\"><span class=\"eyebrow\">INSPIRATION MODE</span><h1>Looks récents des stars</h1><p class=\"muted\">Photos et actualités chargées en arrière-plan et affichées directement ici. Tu restes sur CLOSETIA : aucun bouton ne t’envoie vers un autre site. La fraîcheur des résultats dépend des sources disponibles.</p><div class=\"celebrity-grid\">"+celebs.map(function(c,i){
-    return "<article class=\"card celebrity-card\"><div class=\"celebrity-heading\"><div class=\"celebrity-avatar\" aria-hidden=\"true\">"+esc(c.name.split(" ").map(function(x){return x.charAt(0)}).join("").slice(0,2))+"</div><div><h2>"+esc(c.name)+"</h2><p class=\"muted\">Style & apparitions publiques</p></div></div><div id=\"celebrity-photos-"+i+"\" class=\"celebrity-photos\"><p class=\"muted\">Chargement des photos…</p></div><h3 class=\"celebrity-subtitle\">Actualités mode</h3><div id=\"celebrity-news-"+i+"\" class=\"celebrity-news\"><p class=\"muted\">Recherche des dernières actualités…</p></div></article>";
+    return "<article class=\"card celebrity-card\"><div class=\"celebrity-heading\"><div class=\"celebrity-avatar\" aria-hidden=\"true\">"+esc(c.name.split(" ").map(function(x){return x.charAt(0)}).join("").slice(0,2))+"</div><div><h2>"+esc(c.name)+"</h2><p class=\"muted\">Style & apparitions publiques</p></div></div><div class=\"celebrity-vibe\"><b>Signature de style</b><p>"+esc(c.vibe)+"</p></div><div id=\"celebrity-photos-"+i+"\" class=\"celebrity-photos\"><p class=\"muted\">Chargement des photos…</p></div><button class=\"primary celebrity-recreate\" data-action=\"reproduceCelebrity\" data-id=\""+i+"\">✨ Reproduire avec mon dressing</button><p class=\"muted celebrity-recreate-note\">CLOSETIA compose une tenue inspirée de ce style avec tes propres vêtements — pas une copie exacte de la photo.</p><h3 class=\"celebrity-subtitle\">Actualités mode</h3><div id=\"celebrity-news-"+i+"\" class=\"celebrity-news\"><p class=\"muted\">Recherche des dernières actualités…</p></div></article>";
   }).join("")+"</div><p class=\"muted celebrity-footnote\">Les photos et titres sont intégrés dans la page. Les dates sont affichées lorsqu’elles sont fournies par la source ; certains résultats peuvent être plus anciens.</p></div>";
 }
+
+function reproduceCelebrityLook(index){
+  var celeb=celebrityData()[Number(index)];
+  if(!celeb){alert("Cette inspiration n’est pas disponible.");return}
+  var wardrobe=db.items.filter(function(x){return x&&x.id!=null});
+  if(wardrobe.length<2){alert("Ajoute au moins deux vêtements dans ton Dressing pour composer une tenue inspirée de "+celeb.name+".");location.hash="#/dressing";return}
+  var profile=db.settings.profile||{}, keywords=(celeb.keywords||[]).map(function(x){return x.toLowerCase()});
+  var month=new Date().getMonth(), season=month>=2&&month<=4?"Printemps":month>=5&&month<=7?"Été":month>=8&&month<=10?"Automne":"Hiver";
+  function textOf(x){return [x.name,x.category,x.color,x.occasion,x.season,x.notes].filter(Boolean).join(" ").toLowerCase()}
+  function score(x){
+    var t=textOf(x), score=Math.random();
+    keywords.forEach(function(k){if(t.includes(k))score+=3});
+    if(x.favorite)score+=1.5;
+    if(profile.colors&&profile.colors.includes(x.color))score+=1.5;
+    if(x.season===season||x.season==="Toute l'année")score+=1;
+    if(Array.isArray(profile.impressions))profile.impressions.forEach(function(p){if(t.includes(String(p).toLowerCase()))score+=.7});
+    if(Array.isArray(profile.patterns))profile.patterns.forEach(function(p){if(t.includes(String(p).toLowerCase()))score+=.7});
+    return score;
+  }
+  function best(category,exclude){
+    var list=wardrobe.filter(function(x){return x.category===category&&!(exclude||[]).some(function(y){return y.id===x.id})});
+    return list.sort(function(a,b){return score(b)-score(a)})[0]||null;
+  }
+  var chosen=[];
+  ["Haut","Bas","Chaussures"].forEach(function(category){var item=best(category,chosen);if(item)chosen.push(item)});
+  if(chosen.length<2){
+    wardrobe.slice().sort(function(a,b){return score(b)-score(a)}).forEach(function(item){if(chosen.length<Math.min(3,wardrobe.length)&&!chosen.some(function(x){return x.id===item.id}))chosen.push(item)});
+  }
+  if(chosen.length<2){alert("Il faut au moins deux pièces différentes dans ton dressing.");return}
+  var outfit={id:makeId(),name:"Inspiration "+celeb.name,occasion:"Tous les jours",items:chosen.map(function(x){return x.id}),date:new Date().toISOString(),season:season,inspiration:celeb.name,styleKeywords:celeb.keywords};
+  db.outfits.push(outfit);save();location.hash="#/tenues";render();
+  setTimeout(function(){
+    var cards=document.querySelectorAll(".outfit");
+    if(cards.length){cards[0].classList.add("inspired-outfit-highlight");cards[0].scrollIntoView({behavior:"smooth",block:"center"})}
+  },80);
+}
+
 function loadCelebrityLooks(){
   if(location.hash!=="#/stars")return;
   var celebs=celebrityData();
@@ -992,6 +1029,7 @@ function bindPage(){
       else if(action==="favorite") toggleFavorite(itemId);
       else if(action==="wear") markWorn(itemId);
       else if(action==="generate") generateOutfit();
+      else if(action==="reproduceCelebrity") reproduceCelebrityLook(el.dataset.id);
       else if(action==="deleteOutfit") deleteOutfit(itemId);
       else if(action==="palette") togglePalette(el.dataset.color); else if(action==="colorHarmony") getColorHarmony();
       else if(action==="colorimetryColor") toggleColorimetryColor(el.dataset.color);
