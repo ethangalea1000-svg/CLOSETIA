@@ -56,7 +56,7 @@ function load(){
   }
 }
 
-const CLOUD_API = "https://cloud-manager-gateway.ethan-galea1000.workers.dev";
+const CLOUD_API = ""; // Same-origin: proxied by Cloudflare Pages Functions to avoid browser CORS failures.
 const CLOUD_TOKEN_KEY = "closetia.cloud.session";
 let cloudSyncTimer = null;
 let cloudSyncRunning = false;
