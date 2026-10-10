@@ -134,3 +134,17 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
  .profile-card .brand-head{flex-direction:column}
  .profile-card .colorchoice{font-size:13px}
 }
+
+/* Espace d'administration */
+.admin-section{max-width:1120px;margin:0 auto;padding-bottom:40px}
+.admin-stats{margin:22px 0}
+.admin-panel{margin-top:18px;padding:22px}
+.admin-panel h2{margin-top:0;font-size:21px;letter-spacing:-.4px}
+.admin-line{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:13px 0;border-bottom:1px solid var(--line)}
+.admin-line:last-of-type{border-bottom:0}
+.admin-line span{color:var(--muted)}
+.admin-line strong{text-align:right;overflow-wrap:anywhere}
+.admin-panel .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.admin-note{border-color:#fed7aa;background:#fffaf5}
+.admin-note h2{color:#9a3412}
+@media(max-width:600px){.admin-panel{padding:17px}.admin-line{flex-direction:column;gap:5px}.admin-line strong{text-align:left}}
