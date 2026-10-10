@@ -1105,6 +1105,10 @@ function adminPage(){
     </div>`;
 }
 
+function adminUnavailablePage(){
+  return '<div class="section"><div class="card admin-panel"><span class="eyebrow">ACCÈS RESTREINT</span><h1>Administration temporairement désactivée</h1><p class="muted">L’espace administrateur sera réactivé après le déploiement de la version protégée sur Cloudflare Pages. Cette version GitHub Pages ne peut pas appliquer l’authentification côté serveur.</p><a class="primary" href="./">Retour à CLOSETIA</a></div></div>';
+}
+
 function render(){
   const hash=location.hash || "#/";
   const page=hash.startsWith("#/") ? hash.slice(2) : "";
@@ -1116,7 +1120,7 @@ function render(){
   const selectionEnd=active&&typeof active.selectionEnd==="number"?active.selectionEnd:null;
   document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("active",a.getAttribute("href")==="#/"+page));
   try{
-    app.innerHTML=page==="dressing"?dressing():page==="tenues"?outfits():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="stars"?celebrityLooksPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():page==="memes"?sameClothesPage():page==="admin"?adminPage():home();
+    app.innerHTML=page==="dressing"?dressing():page==="tenues"?outfits():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="stars"?celebrityLooksPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():page==="memes"?sameClothesPage():page==="admin"?adminUnavailablePage():home();
     bindPage();
     if(page==="stars") setTimeout(loadCelebrityLooks,0);
     if(activeId){
