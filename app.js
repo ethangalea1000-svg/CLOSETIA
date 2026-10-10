@@ -535,7 +535,7 @@ function itemCard(item){
 }
 
 function saveProfileData(){
-  var p=db.settings.profile||{}; p.name=($("profileName")||{}).value||""; p.city=($("profileCity")||{}).value||"";
+  var p=db.settings.profile||{}; p.name=($("profileName")||{}).value||""; p.city=($("profileCity")||{}).value||""; p.countryCode=($("profileCountry")||{}).value||"FR"; p.countryName=(($("profileCountry")||{}).selectedOptions||[])[0]?.textContent||"France";
   p.budget=Number(($("profileBudget")||{}).value||0); p.weather=Boolean(($("profileWeather")||{}).checked);
   p.styles=Array.from(document.querySelectorAll("[data-pref=style]:checked")).map(function(x){return x.value});
   p.models=Array.from(document.querySelectorAll("[data-pref=model]:checked")).map(function(x){return x.value});
@@ -610,12 +610,31 @@ function addManualBrand(){
   var el=$("manualBrand"), n=(el&&el.value||"").trim(); if(!n)return;
   toggleBrand(n); if(el)el.value="";
 }
+
+let weatherCountriesPromise=null;
+function loadWeatherCountries(){
+  var select=$("profileCountry");if(!select)return;
+  var selected=(db.settings.profile||{}).countryCode||"FR";
+  if(!weatherCountriesPromise){
+    weatherCountriesPromise=fetch("https://restcountries.com/v3.1/all?fields=name,cca2")
+      .then(function(r){if(!r.ok)throw new Error("Liste des pays indisponible");return r.json()})
+      .then(function(rows){return rows.filter(function(x){return x.cca2&&x.name&&x.name.common}).map(function(x){return {code:x.cca2,name:x.name.common}}).sort(function(a,b){return a.name.localeCompare(b.name,"fr")})})
+      .catch(function(){return [{code:"FR",name:"France"},{code:"BE",name:"Belgique"},{code:"CH",name:"Suisse"},{code:"CA",name:"Canada"},{code:"US",name:"États-Unis"},{code:"GB",name:"Royaume-Uni"},{code:"ES",name:"Espagne"},{code:"IT",name:"Italie"},{code:"DE",name:"Allemagne"}]});
+  }
+  weatherCountriesPromise.then(function(countries){
+    var target=$("profileCountry");if(!target)return;
+    var current=(db.settings.profile||{}).countryCode||selected;
+    target.innerHTML=countries.map(function(c){return "<option value=\\\""+esc(c.code)+"\\\">"+esc(c.name)+"</option>"}).join("");
+    target.value=current;
+    if(!target.value)target.value="FR";
+  });
+}
 function profilePage(){
   var p=db.settings.profile||fresh().settings.profile, styles=["Minimaliste","Streetwear","Casual","Sport","Élégant","Vintage","Créatif","Classique"], models=["T-shirt","Chemise","Pull","Sweat","Jean","Pantalon","Short","Veste","Manteau","Robe","Sneakers","Accessoire"];
   var impressions=["Discret","Élégant","Sportif","Créatif","Décontracté","Sérieux","Confiant","Original","Classique","Streetwear"];
   var patterns=["Uni","Rayures","Carreaux","Fleurs","Léopard / animalier","Camouflage","Logo","Dessin / illustration","Message / slogan","Géométrique","Tie-dye","Imprimé abstrait"];
   function checks(a,k,selected){return a.map(function(x){return "<label class=\"choice\"><input type=\"checkbox\" data-pref=\""+k+"\" value=\""+esc(x)+"\" "+(selected.includes(x)?"checked":"")+"><span>"+esc(x)+"</span></label>"}).join("")}
-  return "<div class=\"section\"><span class=\"eyebrow\">PROFIL DE STYLE</span><h1>Mes goûts</h1><p class=\"muted\">Personnalise tes tenues selon l’image que tu souhaites exprimer et les imprimés que tu aimes. Aucune analyse corporelle.</p><div class=\"card profile-card\"><label>Nom affiché<input id=\"profileName\" value=\""+esc(p.name)+"\" placeholder=\"Nom affiché\"></label><label>Ville pour la météo<input id=\"profileCity\" value=\""+esc(p.city)+"\" placeholder=\"Ex. Saint-Rémy-de-Provence\"></label><label>Budget maximum (€)<input id=\"profileBudget\" type=\"number\" min=\"0\" value=\""+Number(p.budget||0)+"\"></label><label class=\"check\"><input id=\"profileWeather\" type=\"checkbox\" "+(p.weather!==false?"checked":"")+"> Adapter les recommandations à la météo</label><h2>Quelle impression veux-tu donner ?</h2><p class=\"muted\">Choisis une ou plusieurs intentions pour guider les idées de tenues.</p><div class=\"choices\">"+checks(impressions,"impression",Array.isArray(p.impressions)?p.impressions:[])+"</div><h2>Quels motifs / imprimés préfères-tu ?</h2><p class=\"muted\">Tu peux sélectionner plusieurs motifs.</p><div class=\"choices\">"+checks(patterns,"pattern",Array.isArray(p.patterns)?p.patterns:[])+"</div><h2>Styles</h2><div class=\"choices\">"+checks(styles,"style",Array.isArray(p.styles)?p.styles:[])+"</div><h2>Modèles préférés</h2><div class=\"choices\">"+checks(models,"model",Array.isArray(p.models)?p.models:[])+"</div>"+brandCatalog()+"<h2>Couleurs favorites</h2><div class=\"actions\">"+COLORS.filter(function(c){return c!=="Autre"}).map(function(c){return "<button class=\"colorchoice "+(p.colors&&p.colors.includes(c)?"selected":"")+"\" data-action=\"prefColor\" data-color=\""+c+"\"><i class=\"swatch\" style=\"background:"+HEX[c]+"\"></i>"+c+"</button>"}).join("")+"</div><button class=\"primary\" id=\"saveProfile\">Enregistrer mon profil</button></div></div>";
+  return "<div class=\"section\"><span class=\"eyebrow\">PROFIL DE STYLE</span><h1>Mes goûts</h1><p class=\"muted\">Personnalise tes tenues selon l’image que tu souhaites exprimer et les imprimés que tu aimes. Aucune analyse corporelle.</p><div class=\"card profile-card\"><label>Nom affiché<input id=\"profileName\" value=\""+esc(p.name)+"\" placeholder=\"Nom affiché\"></label><label>Pays pour la météo<select id=\"profileCountry\"><option value=\"FR\">France</option></select></label><label>Ville pour la météo<input id=\"profileCity\" value=\""+esc(p.city)+"\" placeholder=\"Ex. Paris, Tokyo, Montréal…\"></label><label>Budget maximum (€)<input id=\"profileBudget\" type=\"number\" min=\"0\" value=\""+Number(p.budget||0)+"\"></label><label class=\"check\"><input id=\"profileWeather\" type=\"checkbox\" "+(p.weather!==false?"checked":"")+"> Adapter les recommandations à la météo</label><h2>Quelle impression veux-tu donner ?</h2><p class=\"muted\">Choisis une ou plusieurs intentions pour guider les idées de tenues.</p><div class=\"choices\">"+checks(impressions,"impression",Array.isArray(p.impressions)?p.impressions:[])+"</div><h2>Quels motifs / imprimés préfères-tu ?</h2><p class=\"muted\">Tu peux sélectionner plusieurs motifs.</p><div class=\"choices\">"+checks(patterns,"pattern",Array.isArray(p.patterns)?p.patterns:[])+"</div><h2>Styles</h2><div class=\"choices\">"+checks(styles,"style",Array.isArray(p.styles)?p.styles:[])+"</div><h2>Modèles préférés</h2><div class=\"choices\">"+checks(models,"model",Array.isArray(p.models)?p.models:[])+"</div>"+brandCatalog()+"<h2>Couleurs favorites</h2><div class=\"actions\">"+COLORS.filter(function(c){return c!=="Autre"}).map(function(c){return "<button class=\"colorchoice "+(p.colors&&p.colors.includes(c)?"selected":"")+"\" data-action=\"prefColor\" data-color=\""+c+"\"><i class=\"swatch\" style=\"background:"+HEX[c]+"\"></i>"+c+"</button>"}).join("")+"</div><button class=\"primary\" id=\"saveProfile\">Enregistrer mon profil</button></div></div>";
 }
 function colorimetryPage(){
   var c=db.settings.colorimetry||{palette:[],status:"Non définie",selectedColors:[]};
@@ -877,12 +896,12 @@ function smartWeather(){
     return fetch(url).then(function(r){if(!r.ok)throw new Error("Recherche des villes françaises indisponible");return r.json()});
   }
   searchFrance(city).then(function(g){
-    var results=(g.results||[]).filter(function(x){return !x.country_code||String(x.country_code).toUpperCase()==="FR"});
+    var results=(g.results||[]).filter(function(x){return !p.countryCode||!x.country_code||String(x.country_code).toUpperCase()===String(p.countryCode).toUpperCase()});
     if(!results.length){
       var cleaned=normalizeCity(city);
       if(!cleaned||cleaned===city.toLowerCase())throw new Error("Ville française introuvable");
       return searchFrance(cleaned).then(function(second){
-        var matches=(second.results||[]).filter(function(x){return !x.country_code||String(x.country_code).toUpperCase()==="FR"});
+        var matches=(second.results||[]).filter(function(x){return !p.countryCode||!x.country_code||String(x.country_code).toUpperCase()===String(p.countryCode).toUpperCase()});
         if(!matches.length)throw new Error("Ville française introuvable");
         return matches;
       });
@@ -895,7 +914,7 @@ function smartWeather(){
       return (an===wanted?-2:an.startsWith(wanted)?-1:0)-(bn===wanted?-2:bn.startsWith(wanted)?-1:0);
     });
     var x=results[0];
-    var label=x.name+(x.admin1?", "+x.admin1:"");
+    var label=x.name+(x.admin1?", "+x.admin1:"")+(x.country?", "+x.country:"");
     return loadAt(x.latitude,x.longitude,label);
   }).catch(function(){
     box.innerHTML='Météo indisponible pour '+esc(city)+'. Vérifie l’orthographe ou ajoute le nom du département (ex. « Saint-Martin, Guadeloupe »). La recherche couvre les villes françaises disponibles dans le géocodeur. <button class="ghost" onclick="location.reload()">Réessayer</button>';
@@ -1102,6 +1121,7 @@ function bindPage(){
     });
   });
   if($("saveProfile")) $("saveProfile").onclick=saveProfileData;
+  if($("profileCountry")) loadWeatherCountries();
   if($("colorPhoto")) $("colorPhoto").onchange=function(e){analyzeColorPhoto(e.target.files[0])};
   if(location.hash==="#/star"||location.hash==="#/"||location.hash==="#") setTimeout(smartWeather,50);
 }
