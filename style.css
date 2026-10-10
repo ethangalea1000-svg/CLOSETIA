@@ -87,3 +87,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .celebrity-news-image{width:100%;max-height:190px;object-fit:cover;border-radius:9px;margin-bottom:8px;background:var(--soft)}
 .celebrity-news-item a{font-size:12px;text-decoration:underline}
 .celebrity-news-item p{overflow-wrap:anywhere}
+
+/* Reproduire une inspiration célébrité avec le dressing personnel */
+.celebrity-vibe{margin:12px 0;padding:12px 14px;border-radius:12px;background:var(--soft,rgba(127,127,127,.08))}
+.celebrity-vibe p{margin:5px 0 0}
+.celebrity-recreate{width:100%;margin:12px 0 6px}
+.celebrity-recreate-note{font-size:12px;margin:0 0 12px}
+.inspired-outfit-highlight{outline:2px solid var(--purple,#8064d8);outline-offset:3px}
