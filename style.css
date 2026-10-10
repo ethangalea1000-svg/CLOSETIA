@@ -98,3 +98,39 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 
 /* Page dédiée : mêmes vêtements et pièces manquantes */
 .look-tracker-form{margin:18px 0}.look-tracker-form label{display:flex;flex-direction:column;gap:6px;min-width:150px;flex:1}.look-tracker-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:16px}.look-tracker-columns h2{display:flex;align-items:center;justify-content:space-between;font-size:1.05rem}.look-count{display:inline-grid;place-items:center;min-width:28px;height:28px;border-radius:50%;background:var(--soft);font-size:13px}.look-item{display:flex;align-items:center;flex-wrap:wrap;gap:8px;justify-content:space-between;padding:12px 0;border-top:1px solid var(--line)}.look-item>div{flex:1;min-width:120px}.look-item p{margin:4px 0 0;font-size:12px}.look-item button{font-size:12px;padding:7px 9px}@media(max-width:650px){.look-tracker-columns{grid-template-columns:1fr}.look-item{justify-content:flex-start}}
+
+
+/* CLOSETIA profile page refresh */
+.profile-card{max-width:960px;margin:24px auto;padding:clamp(18px,3vw,32px);border-radius:24px;box-shadow:0 16px 42px #1018280d}
+.profile-card>label:not(.choice){display:flex;flex-direction:column;gap:8px;margin:0 0 16px;font-size:14px;font-weight:750;color:var(--ink)}
+.profile-card>label:not(.choice) input,.profile-card>label:not(.choice) select{width:100%;min-height:46px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);outline:none;transition:border-color .15s,box-shadow .15s}
+.profile-card>label:not(.choice) input:focus,.profile-card>label:not(.choice) select:focus{border-color:var(--purple);box-shadow:0 0 0 3px #7c3aed1a}
+.profile-card>label.check{display:flex;flex-direction:row;align-items:center;gap:10px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:#fafaff;font-weight:650}
+.profile-card>label.check input{width:18px;height:18px;accent-color:var(--purple)}
+.profile-card h2{font-size:18px;letter-spacing:-.3px;margin:28px 0 8px;padding-top:22px;border-top:1px solid var(--line)}
+.profile-card h2+.muted{margin:0 0 12px;line-height:1.55}
+.profile-card .choices{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0 20px}
+.profile-card .choice{display:inline-flex;align-items:center;gap:8px;padding:10px 13px;border:1px solid var(--line);border-radius:13px;background:#fff;color:#344054;font-size:14px;font-weight:650;cursor:pointer;transition:background .15s,border-color .15s,transform .15s}
+.profile-card .choice:hover{border-color:#c4b5fd;transform:translateY(-1px)}
+.profile-card .choice:has(input:checked){background:#f2f0ff;border-color:#a78bfa;color:#5b21b6;box-shadow:0 0 0 1px #a78bfa inset}
+.profile-card .choice input{width:16px;height:16px;margin:0;accent-color:var(--purple)}
+.profile-card .brand-catalog{padding:18px;border:1px solid var(--line);border-radius:18px;background:#fafbff}
+.profile-card .brand-catalog h2{border:0;padding:0;margin:0 0 8px}
+.profile-card .brand-search input,.profile-card .brand-manual input{min-width:0;width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.profile-card .brand-search button,.profile-card .brand-manual button{white-space:nowrap}
+.profile-card .actions{gap:9px}
+.profile-card .colorchoice{padding:9px 12px;border-radius:13px;border:1px solid var(--line);font-weight:650}
+.profile-card .colorchoice.selected{outline:2px solid var(--purple);outline-offset:1px;background:#f2f0ff}
+#saveProfile{width:100%;min-height:48px;margin-top:24px;border-radius:14px;font-weight:750}
+@media(min-width:700px){
+ .profile-card{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:18px;align-items:start}
+ .profile-card>h2,.profile-card>p,.profile-card>.choices,.profile-card>.brand-catalog,.profile-card>.actions,.profile-card>#saveProfile,.profile-card>label.check{grid-column:1/-1}
+ .profile-card>label:not(.choice){margin-bottom:2px}
+}
+@media(max-width:600px){
+ .section h1{font-size:38px;letter-spacing:-2px}
+ .profile-card{padding:16px}
+ .profile-card .brand-search,.profile-card .brand-manual{flex-direction:column}
+ .profile-card .brand-head{flex-direction:column}
+ .profile-card .colorchoice{font-size:13px}
+}
