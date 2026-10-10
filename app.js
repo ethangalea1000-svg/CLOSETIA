@@ -1064,6 +1064,47 @@ function stats(){
     </div>`;
 }
 
+function adminPage(){
+  const worn=db.items.reduce((sum,item)=>sum+(Number(item.wears)||0),0);
+  const cloud=cloudToken()?"Session enregistrée sur cet appareil":"Aucune session Cloudflare enregistrée sur cet appareil";
+  const updated=db.settings&&db.settings.lastUpdated?new Date(db.settings.lastUpdated).toLocaleString("fr-FR"):"Information non disponible";
+  return `
+    <div class="section admin-section">
+      <span class="eyebrow">ESPACE DE GESTION</span>
+      <h1>Administration</h1>
+      <p class="muted">Vue d’ensemble de CLOSETIA, sauvegardes et synchronisation. Les données de ton dressing ne sont pas modifiées par l’ouverture de cette page.</p>
+      <div class="grid admin-stats">
+        <article class="card stat"><b>${db.items.length}</b><span>vêtements enregistrés</span></article>
+        <article class="card stat"><b>${db.outfits.length}</b><span>tenues enregistrées</span></article>
+        <article class="card stat"><b>${db.items.filter(x=>x.favorite).length}</b><span>vêtements favoris</span></article>
+        <article class="card stat"><b>${worn}</b><span>ports cumulés</span></article>
+      </div>
+      <div class="card admin-panel">
+        <h2>État du service</h2>
+        <div class="admin-line"><span>Stockage de cet appareil</span><strong>Disponible</strong></div>
+        <div class="admin-line"><span>Session Cloudflare</span><strong>${esc(cloud)}</strong></div>
+        <p class="muted">L’existence d’une session ne garantit pas que le serveur soit joignable. Utilise le bouton de vérification pour contrôler la connexion.</p>
+        <div class="actions">
+          <button class="primary" data-action="adminCheckCloud">Vérifier / synchroniser le cloud</button>
+          <button class="ghost" data-action="adminSettings">Ouvrir les réglages</button>
+        </div>
+      </div>
+      <div class="card admin-panel">
+        <h2>Sauvegardes et données</h2>
+        <p class="muted">Exporte régulièrement une copie avant d’importer un fichier sur un autre appareil.</p>
+        <div class="actions">
+          <button class="primary" data-action="adminExportJSON">Exporter une sauvegarde JSON</button>
+          <button class="ghost" data-action="adminExportCSV">Exporter le dressing en CSV</button>
+          <button class="ghost" data-action="adminImportJSON">Importer une sauvegarde JSON</button>
+        </div>
+      </div>
+      <div class="card admin-panel admin-note">
+        <h2>Protection de l’espace admin</h2>
+        <p>Cette page est actuellement accessible par son adresse et <strong>n’est pas protégée par un mot de passe administrateur</strong>. Elle ne doit donc pas contenir de secrets ni de commandes sensibles. La vraie protection doit être mise en place côté serveur avant d’ajouter des fonctions réservées à l’administrateur.</p>
+      </div>
+    </div>`;
+}
+
 function render(){
   const hash=location.hash || "#/";
   const page=hash.startsWith("#/") ? hash.slice(2) : "";
@@ -1075,7 +1116,7 @@ function render(){
   const selectionEnd=active&&typeof active.selectionEnd==="number"?active.selectionEnd:null;
   document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("active",a.getAttribute("href")==="#/"+page));
   try{
-    app.innerHTML=page==="dressing"?dressing():page==="tenues"?outfits():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="stars"?celebrityLooksPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():page==="memes"?sameClothesPage():home();
+    app.innerHTML=page==="dressing"?dressing():page==="tenues"?outfits():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="stars"?celebrityLooksPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():page==="memes"?sameClothesPage():page==="admin"?adminPage():home();
     bindPage();
     if(page==="stars") setTimeout(loadCelebrityLooks,0);
     if(activeId){
@@ -1117,7 +1158,7 @@ function bindPage(){
       else if(action==="copyHex") copyHex(el.dataset.hex);
       else if(action==="clearPhotoPalette"){db.settings.colorimetry=db.settings.colorimetry||{};db.settings.colorimetry.palette=[];db.settings.colorimetry.status="Palette effacée";save();}
       else if(action==="day") setCalendarDay(el.dataset.day); else if(action==="calendarPrev"){calendarOffset--;render()} else if(action==="calendarNext"){calendarOffset++;render()}
-      else if(action==="demo") demo(); else if(action==="prefColor") togglePrefColor(el.dataset.color); else if(action==="searchBrands") searchBrands(); else if(action==="toggleBrand") toggleBrand(el.dataset.brand); else if(action==="addManualBrand") addManualBrand(); else if(action==="addFriend") addFriend(); else if(action==="removeFriend") removeFriend(el.dataset.id);
+      else if(action==="adminExportJSON") exportJSON(); else if(action==="adminExportCSV") exportCSV(); else if(action==="adminImportJSON"){importFile.value="";importFile.click();} else if(action==="adminSettings") openSettings(); else if(action==="adminCheckCloud"){if(cloudToken()) syncCloudNow(); else openSettings();} else if(action==="demo") demo(); else if(action==="prefColor") togglePrefColor(el.dataset.color); else if(action==="searchBrands") searchBrands(); else if(action==="toggleBrand") toggleBrand(el.dataset.brand); else if(action==="addManualBrand") addManualBrand(); else if(action==="addFriend") addFriend(); else if(action==="removeFriend") removeFriend(el.dataset.id);
     });
   });
   if($("saveProfile")) $("saveProfile").onclick=saveProfileData;
