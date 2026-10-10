@@ -1108,6 +1108,7 @@ function adminPage(){
 function render(){
   const hash=location.hash || "#/";
   const page=hash.startsWith("#/") ? hash.slice(2) : "";
+  if(page==="admin" && !/\/admin\.html$/i.test(location.pathname)){ location.replace("admin.html#/admin"); return; }
   const app=$("app");
   if(!app) return;
   const active=document.activeElement;
@@ -1181,7 +1182,7 @@ db.items.forEach(item => {
   }
 });
 save(false);
-if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+if("serviceWorker" in navigator && !/\/admin\.html$/i.test(location.pathname)) navigator.serviceWorker.register("sw.js").catch(()=>{});
 render();
 checkCloudSession();
 })();
