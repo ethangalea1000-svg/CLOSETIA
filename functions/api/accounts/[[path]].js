@@ -200,10 +200,11 @@ export async function onRequest({ request, env }) {
       return json({ok:true,user:{id:row.id,username:row.username}},200,{"Set-Cookie":await issueCookie(row.id,env.AUTH_SECRET)});
     }
     if (path === "magic-request" && request.method === "POST") {
-      const body = await request.json(), email = String(body.email || "").trim(), emailNorm = email.toLocaleLowerCase("en-US");
+      const body = await request.json(), username = String(body.username || "").trim(), email = String(body.email || "").trim(), emailNorm = email.toLocaleLowerCase("en-US");
+      if (!validUsername(username)) return fail("Le pseudo doit contenir 3 à 24 caractères : lettres, chiffres, point, tiret ou soulignement.");
       if (!validEmail(email)) return fail("Saisis une adresse e-mail valide.");
       if (!env.RESEND_API_KEY || !env.EMAIL_FROM) return fail("L’envoi d’e-mails n’est pas configuré. Il faut ajouter RESEND_API_KEY et EMAIL_FROM dans les secrets Preview.",503);
-      const row = await env.CLOSETIA_DB.prepare("SELECT id FROM closetia_accounts WHERE email_norm = ?").bind(emailNorm).first();
+      const row = await env.CLOSETIA_DB.prepare("SELECT id FROM closetia_accounts WHERE email_norm = ? AND username_norm = ?").bind(emailNorm, username.toLocaleLowerCase("en-US")).first();
       // Always return the same public response so the endpoint does not reveal whether an account exists.
       if (row) {
         const rawToken = b64u(crypto.getRandomValues(new Uint8Array(32)));
