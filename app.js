@@ -1195,13 +1195,23 @@ async function searchAccountUsers(query){
 }
 async function submitEmailRegister(event){
   event.preventDefault();
+  const form=event.currentTarget;
+  const button=event.submitter||form.querySelector('button[type="submit"]');
   const username=$("emailRegisterName").value.trim(),email=$("emailRegisterAddress").value.trim(),password=$("emailRegisterPassword").value;
+  if(button){button.disabled=true;button.dataset.originalText=button.textContent;button.textContent="Création du compte…";}
+  accountMessage("Envoi de la demande au serveur CLOSETIA…",false);
   try{
     const result=await accountApi("email-register",{method:"POST",body:JSON.stringify({username,email,password})});
     accountSessionUser=result.user||null;accountGateChecked=true;accountGateError="";
-    accountMessage("Compte e-mail créé. Bienvenue sur CLOSETIA.",false);event.target.reset();
+    accountMessage("Compte e-mail créé. Bienvenue sur CLOSETIA.",false);form.reset();
     document.body.classList.toggle("auth-required",!accountSessionUser);render();
-  }catch(e){accountMessage(e.message,true);}
+  }catch(e){
+    accountMessage(e instanceof TypeError
+      ? "Le serveur CLOSETIA ne répond pas. Vérifie le déploiement Preview et réessaie."
+      : (e.message||"La création du compte a échoué. Réessaie."),true);
+  }finally{
+    if(button){button.disabled=false;button.textContent=button.dataset.originalText||"Créer mon compte e-mail";delete button.dataset.originalText;}
+  }
 }
 async function submitEmailLogin(event){
   event.preventDefault();
