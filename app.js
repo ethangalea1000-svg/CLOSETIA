@@ -1280,8 +1280,10 @@ function bindPage(){
       else if(action==="clearPhotoPalette"){db.settings.colorimetry=db.settings.colorimetry||{};db.settings.colorimetry.palette=[];db.settings.colorimetry.status="Palette effacée";save();}
       else if(action==="day") setCalendarDay(el.dataset.day); else if(action==="calendarPrev"){calendarOffset--;render()} else if(action==="calendarNext"){calendarOffset++;render()}
       else if(action==="adminExportJSON") exportJSON(); else if(action==="adminExportCSV") exportCSV(); else if(action==="adminImportJSON"){importFile.value="";importFile.click();} else if(action==="adminSettings") openSettings(); else if(action==="adminCheckCloud"){if(cloudToken()) syncCloudNow(); else openSettings();} else if(action==="demo") demo(); else if(action==="prefColor") togglePrefColor(el.dataset.color); else if(action==="searchBrands") searchBrands(); else if(action==="toggleBrand") toggleBrand(el.dataset.brand); else if(action==="addManualBrand") addManualBrand(); else if(action==="addFriend") addFriend(); else if(action==="removeFriend") removeFriend(el.dataset.id);
+      else if(action==="removeWishlist") removeWishlistItem(el.dataset.id);
     });
   });
+  if($("wishlistForm")) $("wishlistForm").addEventListener("submit",event=>{event.preventDefault();addWishlistItem();});
   if($("saveProfile")) $("saveProfile").onclick=saveProfileData;
   if($("profileCountry")) loadWeatherCountries();
   if($("colorPhoto")) $("colorPhoto").onchange=function(e){analyzeColorPhoto(e.target.files[0])};
