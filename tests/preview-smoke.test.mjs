@@ -3,6 +3,14 @@ import { readFileSync } from "node:fs";
 
 const source = readFileSync(new URL("../app.js", import.meta.url), "utf8");
 assert.doesNotThrow(() => new Function(source), "app.js must parse as JavaScript");
+assert.ok(source.includes("function authGatePage()"), "a dedicated mandatory sign-in screen must exist");
+assert.ok(source.includes("if(!accountGateChecked || !accountSessionUser)"), "app routes must stay gated until session validation");
+assert.ok(source.includes("initializeAccountGate();"), "session must be checked on every fresh page load");
+
+const accountApiSource = readFileSync(new URL("../functions/api/accounts/[[path]].js", import.meta.url), "utf8");
+assert.ok(accountApiSource.includes("function rateLimit("), "account API must throttle request bursts");
+assert.ok(accountApiSource.includes("Retry-After"), "rate-limit responses must tell clients when to retry");
+assert.ok(accountApiSource.includes("Origine de requête refusée."), "account API must reject cross-origin POST requests");
 
 const start = source.indexOf("function mergeRecords(");
 const end = source.indexOf("function esc(value)", start);
