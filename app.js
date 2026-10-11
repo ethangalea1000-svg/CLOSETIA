@@ -14,7 +14,7 @@ const importFile = $("importFile");
 
 let db = load();
 
-function fresh(){ return {items:[],outfits:[],calendar:{},palette:[],settings:{profile:{name:"",city:"",styles:[],models:[],brands:[],budget:50,weather:true,colors:[]},colorimetry:{palette:[],status:"Non définie"},friends:[],shared:[],lookTracker:[]}}; }
+function fresh(){ return {items:[],outfits:[],calendar:{},palette:[],settings:{profile:{name:"",city:"",styles:[],models:[],brands:[],budget:50,weather:true,colors:[]},colorimetry:{palette:[],status:"Non définie"},friends:[],shared:[],lookTracker:[],wishlist:[]}}; }
 
 function makeId(){
   if(window.crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -48,7 +48,7 @@ function load(){
       outfits:Array.isArray(x.outfits)?x.outfits:[],
       calendar:x.calendar && typeof x.calendar==="object"?x.calendar:{},
       palette:Array.isArray(x.palette)?x.palette:[],
-      settings:{...fresh().settings,...(x.settings||{}),profile:{...fresh().settings.profile,...((x.settings&&x.settings.profile)||{})},colorimetry:{...fresh().settings.colorimetry,...((x.settings&&x.settings.colorimetry)||{}),palette:Array.isArray(x.settings&&x.settings.colorimetry&&x.settings.colorimetry.palette)?x.settings.colorimetry.palette:[],selectedColors:Array.isArray(x.settings&&x.settings.colorimetry&&x.settings.colorimetry.selectedColors)?x.settings.colorimetry.selectedColors:[]},friends:Array.isArray(x.settings&&x.settings.friends)?x.settings.friends:[],shared:Array.isArray(x.settings&&x.settings.shared)?x.settings.shared:[]}
+      settings:{...fresh().settings,...(x.settings||{}),profile:{...fresh().settings.profile,...((x.settings&&x.settings.profile)||{})},colorimetry:{...fresh().settings.colorimetry,...((x.settings&&x.settings.colorimetry)||{}),palette:Array.isArray(x.settings&&x.settings.colorimetry&&x.settings.colorimetry.palette)?x.settings.colorimetry.palette:[],selectedColors:Array.isArray(x.settings&&x.settings.colorimetry&&x.settings.colorimetry.selectedColors)?x.settings.colorimetry.selectedColors:[]},friends:Array.isArray(x.settings&&x.settings.friends)?x.settings.friends:[],shared:Array.isArray(x.settings&&x.settings.shared)?x.settings.shared:[],wishlist:Array.isArray(x.settings&&x.settings.wishlist)?x.settings.wishlist:[]}
     };
   }catch(e){
     console.error("CLOSETIA load error",e);
@@ -56,8 +56,9 @@ function load(){
   }
 }
 
-const CLOUD_API = "https://cloud-manager-gateway.ethan-galea1000.workers.dev";
+const CLOUD_API = ""; // Same-origin: proxied by Cloudflare Pages Functions to avoid browser CORS failures.
 const CLOUD_TOKEN_KEY = "closetia.cloud.session";
+const CLOUD_PENDING_KEY = "closetia.cloud.pending";
 let cloudSyncTimer = null;
 let cloudSyncRunning = false;
 let cloudSyncAgain = false;
@@ -108,7 +109,10 @@ async function syncCloudNow(){
       const snapshot=JSON.stringify(db);
       await cloudRequest("/api/closetia/preferences/main",{method:"PUT",body:JSON.stringify({data:JSON.parse(snapshot)})});
       if(snapshot!==JSON.stringify(db)) cloudSyncAgain=true;
-      else showCloudStatus("Synchronisé avec Cloudflare D1.",false);
+      else {
+        try{localStorage.removeItem(CLOUD_PENDING_KEY);}catch(ignore){}
+        showCloudStatus("Synchronisé avec Cloudflare D1.",false);
+      }
     }while(cloudSyncAgain && cloudToken() && cloudReady);
   }finally{
     cloudSyncRunning=false;
@@ -157,10 +161,18 @@ async function checkCloudSession(){
     if(remote&&Array.isArray(remote.items)){
       // Ne jamais remplacer un dressing local non vide par un snapshot Cloud vide.
       // On garde les pièces locales et on les renvoie vers D1 pour éviter une perte silencieuse.
-      if(db.items.length>0 && remote.items.length===0){
+      if(hasLocalData(db) && !hasRemoteData(remote)){
         showCloudStatus("Dressing local conservé : le Cloud contient 0 vêtement. Synchronisation de tes données locales…",true);
         cloudReady=true;
         await syncCloudNow();
+        return;
+      }
+      if(localStorage.getItem(CLOUD_PENDING_KEY)==="1"){
+        db=mergeSnapshots(db,remote);
+        localStorage.setItem(KEY,JSON.stringify(db));
+        cloudReady=true;
+        await syncCloudNow();
+        showCloudStatus("Modifications locales fusionnées avec le Cloud.",false);
         return;
       }
       db={
@@ -225,12 +237,29 @@ async function connectCloudflare(){
       if(!/404|introuvable|not found|aucun|absent/i.test(e.message)) throw e;
     }
     if(remote&&Array.isArray(remote.items)){
-      db=remote;
-      db.settings={...fresh().settings,...(db.settings||{}),profile:{...fresh().settings.profile,...((db.settings&&db.settings.profile)||{})},colorimetry:{...fresh().settings.colorimetry,...((db.settings&&db.settings.colorimetry)||{})},friends:Array.isArray(db.settings?.friends)?db.settings.friends:[],shared:Array.isArray(db.settings?.shared)?db.settings.shared:[]};
-      localStorage.setItem(KEY,JSON.stringify(db));
-      render();
-      cloudReady=true;
-      showCloudStatus("Données Cloudflare chargées et synchronisées.",false);
+      if(hasLocalData(db) && hasRemoteData(remote)){
+        const proceed=confirm("Le dressing local contient "+db.items.length+" vêtements et le Cloud en contient "+remote.items.length+".\n\nPour éviter toute perte, CLOSETIA va télécharger une sauvegarde JSON locale puis fusionner les deux dressings. En cas de même identifiant, la version locale est prioritaire. Continuer ?");
+        if(!proceed) return;
+        download("closetia-sauvegarde-avant-fusion.json",JSON.stringify({format:"CLOSETIA",version:2,exportedAt:new Date().toISOString(),...db},null,2),"application/json");
+        db=mergeSnapshots(db,remote);
+        localStorage.setItem(KEY,JSON.stringify(db));
+        try{localStorage.setItem(CLOUD_PENDING_KEY,"1");}catch(ignore){}
+        cloudReady=true;
+        await syncCloudNow();
+        render();
+        showCloudStatus("Dressings fusionnés. Sauvegarde locale téléchargée.",false);
+      }else if(hasLocalData(db) && !hasRemoteData(remote)){
+        cloudReady=true;
+        try{localStorage.setItem(CLOUD_PENDING_KEY,"1");}catch(ignore){}
+        await syncCloudNow();
+        showCloudStatus("Dressing local conservé et envoyé vers le Cloud.",false);
+      }else{
+        db=mergeSnapshots(fresh(),remote);
+        localStorage.setItem(KEY,JSON.stringify(db));
+        render();
+        cloudReady=true;
+        showCloudStatus("Données Cloudflare chargées et synchronisées.",false);
+      }
     }else{
       cloudReady=true;
       await syncCloudNow();
@@ -254,10 +283,79 @@ function disconnectCloudflare(){
 }
 
 function save(shouldRender=true){
-  try{ localStorage.setItem(KEY,JSON.stringify(db)); }
-  catch(e){ alert("Impossible d'enregistrer les données locales. Vérifie l'espace disponible."); console.error(e); return; }
+  try{
+    localStorage.setItem(KEY,JSON.stringify(db));
+  }catch(e){
+    alert("Impossible d'enregistrer les données locales. Les modifications ne sont pas confirmées. Exporte ton dressing si possible, puis libère de l'espace.");
+    console.error("CLOSETIA save error",e);
+    return false;
+  }
+  if(cloudToken() && cloudReady){
+    try{localStorage.setItem(CLOUD_PENDING_KEY,"1");}catch(ignore){}
+  }
   queueCloudSync();
   if(shouldRender) render();
+  return true;
+}
+
+function mergeRecords(primary,secondary){
+  const map=new Map();
+  [...(Array.isArray(primary)?primary:[]),...(Array.isArray(secondary)?secondary:[])].forEach((record,index)=>{
+    if(!record || typeof record!=="object") return;
+    map.set(String(record.id||record.name||("record-"+index)),record);
+  });
+  return [...map.values()];
+}
+function hasLocalData(snapshot){
+  if(!snapshot || typeof snapshot!=="object") return false;
+  const settings=snapshot.settings||{},profile=settings.profile||{},colorimetry=settings.colorimetry||{};
+  return Boolean(
+    (Array.isArray(snapshot.items)&&snapshot.items.length) ||
+    (Array.isArray(snapshot.outfits)&&snapshot.outfits.length) ||
+    (snapshot.calendar&&Object.keys(snapshot.calendar).length) ||
+    (Array.isArray(snapshot.palette)&&snapshot.palette.length) ||
+    profile.name || profile.city ||
+    (profile.budget!==undefined && Number(profile.budget)!==50) ||
+    profile.weather===false ||
+    (profile.countryCode && profile.countryCode!=="FR") ||
+    (profile.countryName && profile.countryName!=="France") ||
+    ["styles","models","brands","colors","impressions","patterns"].some(key=>Array.isArray(profile[key])&&profile[key].length) ||
+    (Array.isArray(colorimetry.palette)&&colorimetry.palette.length) ||
+    (Array.isArray(settings.friends)&&settings.friends.length) ||
+    (Array.isArray(settings.shared)&&settings.shared.length) ||
+    (Array.isArray(settings.wishlist)&&settings.wishlist.length) ||
+    (Array.isArray(settings.lookTracker)&&settings.lookTracker.length)
+  );
+}
+function hasRemoteData(snapshot){
+  return hasLocalData(snapshot);
+}
+function mergeSnapshots(localSnapshot,remoteSnapshot){
+  const defaults=fresh();
+  const local=localSnapshot&&typeof localSnapshot==="object"?localSnapshot:defaults;
+  const remote=remoteSnapshot&&typeof remoteSnapshot==="object"?remoteSnapshot:defaults;
+  const ls=local.settings||{},rs=remote.settings||{};
+  const lc=ls.colorimetry||{},rc=rs.colorimetry||{};
+  return {
+    ...defaults,...remote,...local,
+    items:mergeRecords(remote.items,local.items).map(normalize),
+    outfits:mergeRecords(remote.outfits,local.outfits),
+    calendar:{...(remote.calendar||{}),...(local.calendar||{})},
+    palette:[...new Set([...(Array.isArray(remote.palette)?remote.palette:[]),...(Array.isArray(local.palette)?local.palette:[])])],
+    settings:{
+      ...defaults.settings,...rs,...ls,
+      profile:{...defaults.settings.profile,...(rs.profile||{}),...(ls.profile||{})},
+      colorimetry:{
+        ...defaults.settings.colorimetry,...rc,...lc,
+        palette:Array.isArray(lc.palette)?lc.palette:(Array.isArray(rc.palette)?rc.palette:[]),
+        selectedColors:[...new Set([...(Array.isArray(rc.selectedColors)?rc.selectedColors:[]),...(Array.isArray(lc.selectedColors)?lc.selectedColors:[])])]
+      },
+      friends:[...new Set([...(Array.isArray(rs.friends)?rs.friends:[]),...(Array.isArray(ls.friends)?ls.friends:[])])],
+      shared:mergeRecords(rs.shared,ls.shared),
+      lookTracker:mergeRecords(rs.lookTracker,ls.lookTracker),
+      wishlist:mergeRecords(rs.wishlist,ls.wishlist)
+    }
+  };
 }
 
 function esc(value){
@@ -278,28 +376,43 @@ function guess(name){
   return {category,color};
 }
 
+function compressImageData(data, maxSide=640, quality=0.55){
+  if(typeof data!=="string" || !data.startsWith("data:image/") || data.length<45000) return Promise.resolve(data||"");
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const scale=Math.min(1,maxSide/Math.max(img.naturalWidth,img.naturalHeight));
+        const canvas=document.createElement("canvas");
+        canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
+        canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+        const ctx=canvas.getContext("2d");
+        if(!ctx) return resolve(data);
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        const compressed=canvas.toDataURL("image/jpeg",quality);
+        resolve(compressed.length<data.length?compressed:data);
+      }catch(e){console.warn("CLOSETIA image compression:",e);resolve(data)}
+    };
+    img.onerror=()=>resolve(data);
+    img.src=data;
+  });
+}
+
 function addFiles(files){
   Array.from(files || []).forEach(file=>{
     if(!file.type || !file.type.startsWith("image/")) return;
     const baseName=file.name.replace(/\.[^.]+$/,"").replace(/[_-]+/g," ").trim();
     const g=guess(baseName);
     const reader=new FileReader();
-    reader.onload=()=>{
-      const img=new Image();
-      img.onload=()=>{
-        try{
-          const scale=Math.min(1,1200/Math.max(img.naturalWidth,img.naturalHeight));
-          const canvas=document.createElement("canvas");
-          canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
-          canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
-          canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
-          const data=canvas.toDataURL("image/jpeg",0.78);
-          db.items.push(normalize({name:(baseName && !/^\d[\d _-]*$/.test(baseName))?baseName:"Vêtement",category:g.category,color:g.color,image:data}));
-          save();
-        }catch(e){alert("Photo trop lourde pour être enregistrée. Essaie une image plus petite.");console.error(e)}
-      };
-      img.onerror=()=>alert("Impossible de traiter la photo "+file.name);
-      img.src=reader.result;
+    reader.onload=async()=>{
+      try{
+        const data=await compressImageData(reader.result,640,0.55);
+        db.items.push(normalize({name:(baseName && !/^\d[\d _-]*$/.test(baseName))?baseName:"Vêtement",category:g.category,color:g.color,image:data}));
+        if(!save()){
+          db.items.pop();
+          alert("La photo n'a pas été conservée : l'espace de stockage local est insuffisant.");
+        }
+      }catch(e){alert("Photo trop lourde pour être enregistrée. Essaie une image plus petite.");console.error(e)}
     };
     reader.onerror=()=>alert("Impossible de lire "+file.name);
     reader.readAsDataURL(file);
@@ -331,22 +444,33 @@ function exportCSV(){
 
 function importJSON(file){
   if(!file) return;
+  const previousDb=db;
   const reader=new FileReader();
-  reader.onload=()=>{
+  reader.onload=async()=>{
     try{
       const x=JSON.parse(reader.result);
       if(!Array.isArray(x.items)) throw new Error("items manquants");
       const defaults=fresh();
       const incoming=x.settings && typeof x.settings==="object"?x.settings:{};
+      const importedItems=await Promise.all(x.items.map(async item=>{
+        const normalized=normalize(item);
+        normalized.image=await compressImageData(normalized.image,640,0.55);
+        return normalized;
+      }));
       db={
-        items:x.items.map(normalize),
+        items:importedItems,
         outfits:Array.isArray(x.outfits)?x.outfits:[],
         calendar:x.calendar && typeof x.calendar==="object"?x.calendar:{},
         palette:Array.isArray(x.palette)?x.palette:[],
-        settings:{...defaults.settings,...incoming,profile:{...defaults.settings.profile,...(incoming.profile||{})},colorimetry:{...defaults.settings.colorimetry,...(incoming.colorimetry||{})},friends:Array.isArray(incoming.friends)?incoming.friends:[],shared:Array.isArray(incoming.shared)?incoming.shared:[]}
+        settings:{...defaults.settings,...incoming,profile:{...defaults.settings.profile,...(incoming.profile||{})},colorimetry:{...defaults.settings.colorimetry,...(incoming.colorimetry||{})},friends:Array.isArray(incoming.friends)?incoming.friends:[],shared:Array.isArray(incoming.shared)?incoming.shared:[],wishlist:Array.isArray(incoming.wishlist)?incoming.wishlist:[]}
       };
-      save();
-      alert("Dressing importé avec succès.");
+      if(!save()){
+        db=previousDb;
+        render();
+        alert("Import annulé : le navigateur n'a pas pu enregistrer les données. Ton dressing précédent a été conservé.");
+        return;
+      }
+      alert("Dressing importé localement. La synchronisation Cloud, si activée, peut encore être en attente.");
     }catch(e){
       console.error(e);
       alert("Fichier CLOSETIA invalide.");
@@ -427,7 +551,7 @@ function generateOutfit(){
   const pool=db.items.filter(x=>occasion==="Tous les jours"||x.occasion===occasion||x.occasion==="Tous les jours");
   if(pool.length<2){alert("Ajoute au moins deux vêtements compatibles.");return}
   function score(item){
-    let n=Math.random()*2;
+    let n=0;
     if(item.favorite)n+=2;
     if(profile.colors&&profile.colors.includes(item.color))n+=3;
     if(item.season===season||item.season==="Toute l'année")n+=2;
@@ -440,7 +564,7 @@ function generateOutfit(){
     if(item.wears>0)n+=Math.min(item.wears,5)*.15;
     return n;
   }
-  function choose(list){return list.slice().sort((a,b)=>score(b)-score(a))[0]}
+  function choose(list){return list.map(item=>({item,score:score(item)+Math.random()*0.2})).sort((a,b)=>b.score-a.score)[0].item}
   const chosen=[];
   ["Haut","Bas","Chaussures"].forEach(category=>{const candidates=pool.filter(x=>x.category===category);if(candidates.length)chosen.push(choose(candidates))});
   if(chosen.length<2){
@@ -497,6 +621,12 @@ function openSettings(){
     </div>`;
   document.body.appendChild(modal);
   $("closeModal").onclick=closeModal;
+  const storagePanel=document.createElement("div");
+  storagePanel.className="card";
+  storagePanel.style.cssText="margin:12px 0;padding:14px";
+  storagePanel.innerHTML="<h3>État du stockage</h3><p id='storageDiagnostics' class='muted'>Calcul de la taille des données…</p><p class='muted'>Les photos font partie de la sauvegarde et de la synchronisation actuelles. Si le Cloud signale des données trop volumineuses, exporte un JSON avant toute nouvelle tentative et évite de te déconnecter/reconnecter en boucle.</p>";
+  $("connectCloud").parentElement.parentElement.after(storagePanel);
+  updateStorageDiagnostics();
   $("connectCloud").onclick=connectCloudflare;
   $("disconnectCloud").onclick=disconnectCloudflare;
   $("exportJSON").onclick=exportJSON;
@@ -508,6 +638,26 @@ function openSettings(){
       location.reload();
     }
   };
+}
+
+async function updateStorageDiagnostics(){
+  const el=$("storageDiagnostics");
+  if(!el)return;
+  const json=JSON.stringify(db);
+  const totalBytes=new Blob([json]).size;
+  const photoBytes=db.items.reduce((sum,item)=>sum+(typeof item.image==="string"?new Blob([item.image]).size:0),0);
+  const fmt=bytes=>bytes<1024?bytes+" o":bytes<1024*1024?(bytes/1024).toFixed(1)+" Ko":(bytes/1024/1024).toFixed(2)+" Mo";
+  let browserInfo="Quota du navigateur non disponible.";
+  try{
+    if(navigator.storage&&navigator.storage.estimate){
+      const estimate=await navigator.storage.estimate();
+      if(estimate&&Number.isFinite(estimate.usage)&&Number.isFinite(estimate.quota)){
+        browserInfo="Utilisation estimée du navigateur : "+fmt(estimate.usage)+" / "+fmt(estimate.quota)+".";
+      }
+    }
+  }catch(ignore){}
+  const warning=totalBytes>700*1024?"<strong>Attention :</strong> la sauvegarde dépasse 700 Ko. La limite exacte dépend du service Cloud et du Worker.":"";
+  el.innerHTML="<b>"+db.items.length+" vêtement(s)</b> · Photos : "+fmt(photoBytes)+" · Sauvegarde complète : "+fmt(totalBytes)+"<br>"+browserInfo+(warning?"<br><span style='color:#b45309'>"+warning+"</span>":"");
 }
 
 function demo(){
@@ -715,9 +865,33 @@ function shoppingSuggestions(){
     return "<article class=\"card shopping-model-card\"><img class=\"shopping-model-image\" loading=\"lazy\" src=\""+esc(photoFor(model))+"\" alt=\"Exemple d’inspiration pour "+esc(model)+"\" onerror=\"this.style.display='none'\"><div class=\"shopping-model-body\"><h3>"+esc(model)+"</h3><p class=\"muted\">"+(brands.length?"Marque préférée : "+esc(brands[0]):"Style : "+esc((p.styles||[]).join(", ")||"à personnaliser"))+(budget>0?" · budget indicatif : "+budget+" €":"")+"</p><div class=\"store-links\">"+stores.map(function(store){var q="site:"+store.domain+" "+query;return "<a class=\"store-link\" href=\"https://www.google.com/search?q="+encodeURIComponent(q)+"\" target=\"_blank\" rel=\"noopener noreferrer\">Voir sur "+esc(store.name)+" ↗</a>"}).join("")+"<a class=\"store-link store-link-all\" href=\"https://www.google.com/search?tbm=shop&q="+encodeURIComponent(query)+"\" target=\"_blank\" rel=\"noopener noreferrer\">Comparer les magasins ↗</a></div></div></article>";
   }).join("")+"</div><p class=\"muted\">Les photos sont des exemples d’inspiration, pas une garantie que le produit exact est en vente.</p></div>";
 }
+function recommendationReasons(item,p){
+  const reasons=[];
+  if(item.favorite)reasons.push("Favori");
+  if(Array.isArray(p.colors)&&p.colors.includes(item.color))reasons.push("Couleur choisie");
+  if(item.season==="Toute l'année"||item.season===currentSeason())reasons.push("Saison adaptée");
+  if(item.wears>0&&item.wears<=5)reasons.push("Pièce déjà appréciée");
+  const description=(String(item.name||"")+" "+String(item.notes||"")+" "+String(item.category||"")).toLowerCase();
+  if(Array.isArray(p.styles)&&p.styles.some(style=>description.includes(style.toLowerCase())))reasons.push("Style correspondant");
+  if(Array.isArray(p.patterns)&&p.patterns.some(pattern=>description.includes(pattern.toLowerCase())))reasons.push("Motif préféré");
+  if(!reasons.length)reasons.push("Pièce disponible dans ton dressing");
+  return reasons.slice(0,3);
+}
+function currentSeason(){
+  const month=new Date().getMonth();
+  return month>=2&&month<=4?"Printemps":month>=5&&month<=7?"Été":month>=8&&month<=10?"Automne":"Hiver";
+}
 function starPage(){
-  var p=db.settings.profile||{}, list=db.items.slice().sort(function(a,b){var sa=(b.favorite?5:0)+(p.colors&&p.colors.includes(b.color)?5:0)+b.wears+(p.patterns&&p.patterns.some(function(v){return String(b.notes||"").toLowerCase().includes(v.toLowerCase())})?2:0);var sb=(a.favorite?5:0)+(p.colors&&p.colors.includes(a.color)?5:0)+a.wears+(p.patterns&&p.patterns.some(function(v){return String(a.notes||"").toLowerCase().includes(v.toLowerCase())})?2:0);return sa-sb}).slice(0,8);
-  return "<div class=\"section\"><span class=\"eyebrow\">RECOMMANDATIONS</span><h1>⭐ Outfit Star</h1><div id=\"weatherBox\" class=\"card weatherbox\">Chargement de la météo…</div><p class=\"muted\">Pièces favorisées selon tes goûts, tes couleurs, tes favoris et ton historique.</p><div class=\"grid\">"+(list.length?list.map(itemCard).join(""):"<div class=\"empty\">Ajoute des vêtements pour obtenir des recommandations.</div>")+"</div><div style=\"margin-top:24px\">"+shoppingSuggestions()+"</div></div>";
+  var p=db.settings.profile||{};
+  var list=db.items.slice().sort(function(a,b){
+    function score(item){
+      return (item.favorite?5:0)+(Array.isArray(p.colors)&&p.colors.includes(item.color)?5:0)+Math.min(Number(item.wears)||0,5)+
+        (item.season===currentSeason()||item.season==="Toute l'année"?2:0)+
+        (Array.isArray(p.patterns)&&p.patterns.some(function(v){return String(item.notes||"").toLowerCase().includes(v.toLowerCase())})?2:0);
+    }
+    return score(b)-score(a);
+  }).slice(0,8);
+  return "<div class=\"section\"><span class=\"eyebrow\">RECOMMANDATIONS</span><h1>⭐ Outfit Star</h1><div id=\"weatherBox\" class=\"card weatherbox\">Chargement de la météo…</div><p class=\"muted\">Suggestions explicables selon tes favoris, tes couleurs préférées, la saison et les informations que tu as renseignées. Ce sont des pistes, pas des règles.</p><div class=\"grid\">"+(list.length?list.map(function(item){return "<div class=\"recommendation-card\">"+itemCard(item)+"<p class=\"muted recommendation-reasons\"><b>Pourquoi cette pièce ?</b> "+recommendationReasons(item,p).map(esc).join(" · ")+"</p></div>"}).join(""):"<div class=\"empty\">Ajoute des vêtements pour obtenir des recommandations.</div>")+"</div><div style=\"margin-top:24px\">"+shoppingSuggestions()+"</div></div>";
 }
 function celebrityData(){
   return [
@@ -833,7 +1007,7 @@ function loadCelebrityLooks(){
       var fashion=/fashion|style|outfit|red carpet|street style|wardrobe|dress|designer|clothing|look|appearance|mode|tenue|vestiaire|robe|couture|fashion week/.test(text);
       var date=new Date(item.published||item.publishedAt||item.date||item.updated||0);
       var recent=!isNaN(date.getTime())&&date.getTime()>Date.now()-1000*60*60*24*120;
-      return containsName&&fashion&&recent&&item.url;
+      return containsName&&fashion&&recent&&safeExternalUrl(item.url);
     }).slice(0,3);
     if(!relevant.length){box.innerHTML='<p class="muted">Aucun article mode récent et suffisamment pertinent trouvé. Réessaie plus tard.</p>';return}
     box.innerHTML=relevant.map(function(item){
@@ -841,7 +1015,7 @@ function loadCelebrityLooks(){
       var dateText=!isNaN(date.getTime())&&date.getTime()>0?date.toLocaleDateString("fr-FR",{day:"numeric",month:"short",year:"numeric"}):"Date non fournie";
       var source=item.attribution&&item.attribution.publisher||item.source&&item.source.name||item.publisher||"Source de l’article";
       var image=articleImage(item);
-      return '<article class="celebrity-news-item">'+(safeImage(image)?'<img class="celebrity-news-image" loading="lazy" src="'+esc(image)+'" alt="Illustration de l’article" referrerpolicy="no-referrer">':'')+'<p>'+esc(item.title||"Actualité mode")+'</p><small>'+esc(source)+' · '+esc(dateText)+'</small><p><a href="'+esc(item.url)+'" target="_blank" rel="noopener noreferrer">Lire l’article ↗</a></p></article>';
+      return '<article class="celebrity-news-item">'+(safeImage(image)?'<img class="celebrity-news-image" loading="lazy" src="'+esc(image)+'" alt="Illustration de l’article" referrerpolicy="no-referrer">':'')+'<p>'+esc(item.title||"Actualité mode")+'</p><small>'+esc(source)+' · '+esc(dateText)+'</small><p><a href="'+esc(safeExternalUrl(item.url))+'" target="_blank" rel="noopener noreferrer">Lire l’article ↗</a></p></article>';
     }).join("");
   }
   celebs.forEach(function(c,i){
@@ -868,11 +1042,243 @@ function loadCelebrityLooks(){
     }
   });
 }
-function friendsPage(){
-  var fs=db.settings.friends||[]; return "<div class=\"section\"><span class=\"eyebrow\">SOCIAL</span><h1>Amis</h1><div class=\"card\"><p class=\"muted\">Les amis sont préparés localement. Le partage en ligne sera branché sur D1/R2 ensuite.</p><div class=\"toolbar\"><input id=\"friendName\" placeholder=\"Nom de l’ami\"><button class=\"primary\" data-action=\"addFriend\">Ajouter</button></div></div><div class=\"grid\">"+(fs.length?fs.map(function(x,i){return "<div class=\"card\"><h3>👤 "+esc(x)+"</h3><button class=\"danger\" data-action=\"removeFriend\" data-id=\""+i+"\">Supprimer</button></div>"}).join(""):"<div class=\"empty\">Aucun ami.</div>")+"</div></div>";
+function safeExternalUrl(value){
+  try{
+    const url=new URL(String(value||""));
+    return url.protocol==="https:"||url.protocol==="http:"?url.href:"";
+  }catch(ignore){return "";}
 }
-function addFriend(){var n=(($("friendName")||{}).value||"").trim();if(!n)return;var fs=db.settings.friends||[];if(fs.some(function(x){return String(x).toLowerCase()===n.toLowerCase()})){alert("Cet ami est déjà dans la liste.");return}db.settings.friends=fs.concat(n);save()}
-function removeFriend(i){db.settings.friends.splice(Number(i),1);save()}
+function wishlistPage(){
+  const wishlist=Array.isArray(db.settings.wishlist)?db.settings.wishlist:[];
+  const rows=wishlist.slice().reverse().map(item=>{
+    const url=safeExternalUrl(item.url);
+    const price=Number.isFinite(Number(item.price))&&String(item.price).trim()!==""?Number(item.price).toLocaleString("fr-FR",{style:"currency",currency:"EUR"}):"Prix non renseigné";
+    return '<article class="card wishlist-item"><div class="sectionhead"><div><h3>'+esc(item.name||"Article sans nom")+'</h3><span class="tag">'+esc(price)+'</span></div><button class="danger" data-action="removeWishlist" data-id="'+esc(item.id)+'">Retirer</button></div>'+(item.notes?'<p class="muted">'+esc(item.notes)+'</p>':"")+(url?'<a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">Voir l’article ↗</a>': '<span class="muted">Aucun lien enregistré</span>')+'</article>';
+  }).join("");
+  return '<div class="section"><span class="eyebrow">MES ENVIES</span><h1>Liste d’envies</h1><p class="muted">Garde une trace des pièces qui t’intéressent, de leur prix et du lien de la boutique. La liste est privée et enregistrée avec tes données CLOSETIA.</p><form class="card" id="wishlistForm"><h2>Ajouter une envie</h2><label>Nom de l’article<input id="wishName" maxlength="120" required placeholder="Ex. Pull bleu marine"></label><div class="filters"><label>Prix en euros<input id="wishPrice" type="number" min="0" max="100000" step="0.01" placeholder="Facultatif"></label><label>Lien de la boutique<input id="wishUrl" type="url" maxlength="1000" placeholder="https://…"></label></div><label>Notes<textarea id="wishNotes" maxlength="500" placeholder="Taille, couleur, pourquoi il te plaît…"></textarea></label><button class="primary" type="submit">Ajouter à ma liste</button></form><div class="grid" style="margin-top:16px">'+(rows||'<div class="empty">Ta liste est vide. Ajoute une pièce que tu souhaites garder en mémoire.</div>')+'</div></div>';
+}
+function addWishlistItem(){
+  const name=$("wishName")?$("wishName").value.trim():"";
+  const priceRaw=$("wishPrice")?$("wishPrice").value.trim():"";
+  const urlRaw=$("wishUrl")?$("wishUrl").value.trim():"";
+  const notes=$("wishNotes")?$("wishNotes").value.trim():"";
+  if(!name){alert("Indique le nom de l’article.");return;}
+  if(priceRaw!==""&&(!Number.isFinite(Number(priceRaw))||Number(priceRaw)<0)){alert("Le prix doit être un nombre positif.");return;}
+  let url="";
+  if(urlRaw){
+    url=safeExternalUrl(urlRaw);
+    if(!url){alert("Le lien doit commencer par http:// ou https://.");return;}
+  }
+  if(!Array.isArray(db.settings.wishlist))db.settings.wishlist=[];
+  db.settings.wishlist.push({id:makeId(),name,price:priceRaw===""?"":Number(priceRaw),url,notes,createdAt:new Date().toISOString()});
+  if(!save()){db.settings.wishlist.pop();return;}
+}
+function removeWishlistItem(id){
+  const list=Array.isArray(db.settings.wishlist)?db.settings.wishlist:[];
+  const index=list.findIndex(item=>String(item.id)===String(id));
+  if(index<0)return;
+  if(!confirm("Retirer cet article de la liste d’envies ?"))return;
+  const removed=list.splice(index,1)[0];
+  if(!save()){list.splice(index,0,removed);}
+}
+
+let accountSessionUser = null;
+let accountGateChecked = false;
+let accountGateError = "";
+
+function authGatePage(){
+  return '<div class="section auth-gate"><section class="hero auth-hero"><span class="eyebrow">ESPACE PRIVÉ</span><h1>Bienvenue sur <span>CLOSETIA.</span></h1><p>Connecte-toi ou crée ton compte pour accéder à ton dressing et à tes amis.</p><div class="auth-gate-badge">Connexion obligatoire · session sécurisée</div></section>'+
+    '<section class="card auth-card"><div class="sectionhead"><div><h2>Accéder à CLOSETIA</h2><p class="muted">Ton espace reste verrouillé tant que tu n’es pas connecté.</p></div></div>'+
+    (accountGateError?'<p class="account-message error">'+esc(accountGateError)+'</p>':'')+
+    '<div class="account-forms email-auth-forms">' +
+      '<form id="emailRegisterForm" class="account-form"><h2>Créer un compte avec e-mail</h2><label for="emailRegisterName">Pseudo</label><input id="emailRegisterName" maxlength="24" minlength="3" pattern="[A-Za-z0-9_.-]{3,24}" required autocomplete="username"><label for="emailRegisterAddress">Adresse e-mail</label><input id="emailRegisterAddress" type="email" maxlength="254" autocomplete="email" required><label for="emailRegisterPassword">Mot de passe</label><input id="emailRegisterPassword" type="password" minlength="10" maxlength="128" autocomplete="new-password" required><button class="primary" type="submit">Créer mon compte e-mail</button></form>'+
+      '<form id="emailLoginForm" class="account-form"><h2>Connexion par e-mail</h2><label for="emailLoginName">Pseudo</label><input id="emailLoginName" maxlength="24" minlength="3" pattern="[A-Za-z0-9_.-]{3,24}" autocomplete="username" required placeholder="Ton pseudo CLOSETIA"><label for="emailLoginAddress">Adresse e-mail</label><input id="emailLoginAddress" type="email" maxlength="254" autocomplete="email" required><label for="emailLoginPassword">Mot de passe</label><input id="emailLoginPassword" type="password" maxlength="128" autocomplete="current-password" required><button class="ghost" type="submit">Se connecter</button></form>'+
+      '<section class="account-form magic-link-coming"><h2>Lien magique</h2><p>La connexion par lien envoyé par e-mail sera disponible prochainement.</p><span class="auth-gate-badge">Bientôt disponible</span></section>'+
+      '</div><section class="card auth-methods"><h2>Autres méthodes de connexion</h2><p class="muted">Ces méthodes restent désactivées tant que leur authentification serveur n’est pas configurée et testée. Les boutons ne simulent pas une connexion.</p><div class="auth-method-grid"><button class="auth-provider" type="button" disabled>Facebook <small>Bientôt disponible</small></button><button class="auth-provider" type="button" disabled>X <small>Bientôt disponible</small></button><button class="auth-provider" type="button" disabled>Apple <small>Bientôt disponible</small></button><button class="auth-provider" type="button" disabled>LinkedIn <small>Bientôt disponible</small></button><button class="auth-provider" type="button" disabled>Code QR <small>Bientôt disponible</small></button><button class="auth-provider" type="button" disabled>Biométrie / Passkey <small>Bientôt disponible</small></button><button class="auth-provider" type="button" disabled>Google <small>Bientôt disponible — en dernier</small></button></div><p class="muted">La biométrie utilise normalement Face ID, Touch ID ou Windows Hello via une passkey : CLOSETIA ne doit jamais recevoir ni stocker tes empreintes ou ton visage.</p></section><p id="accountMessage" class="account-message" role="status" aria-live="polite"></p><p class="muted auth-note">La connexion protège l’accès à l’interface. Pour protéger aussi les données enregistrées localement sur un appareil partagé, verrouille ta session Windows et ne partage pas cet appareil.</p></section></div>';
+}
+
+function bindAuthGate(){
+  if($("accountRegisterForm")) $("accountRegisterForm").addEventListener("submit",event=>submitAccountForm(event,"register"));
+  if($("accountLoginForm")) $("accountLoginForm").addEventListener("submit",event=>submitAccountForm(event,"login"));
+  if($("emailRegisterForm")) $("emailRegisterForm").addEventListener("submit",submitEmailRegister);
+  if($("emailLoginForm")) $("emailLoginForm").addEventListener("submit",submitEmailLogin);
+  if($("magicLinkForm")) $("magicLinkForm").addEventListener("submit",requestMagicLink);
+}
+
+async function initializeAccountGate(){
+  try{
+    const params=new URLSearchParams(location.search);
+    const magicToken=params.get("magic_token");
+    if(magicToken){
+      history.replaceState(null,"",location.pathname+location.hash);
+      const verified=await accountApi("magic-verify",{method:"POST",body:JSON.stringify({token:magicToken})});
+      accountSessionUser=verified.user||null;
+      accountGateError="";
+      return;
+    }
+    const me=await accountApi("me");
+    accountSessionUser=me.user||null;
+    accountGateError="";
+  }catch(error){
+    accountSessionUser=null;
+    accountGateError=/Connecte-toi/i.test(error.message)?"Connecte-toi pour continuer.":error.message+" L’annuaire nécessite la base D1 CLOSETIA_DB et le secret AUTH_SECRET dans la Preview.";
+  }finally{
+    accountGateChecked=true;
+    document.body.classList.toggle("auth-required",!accountSessionUser);
+    render();
+  }
+}
+
+async function accountApi(path, options={}){
+  const response=await fetch("/api/accounts/"+path,{credentials:"same-origin",headers:{"Content-Type":"application/json",...(options.headers||{})},...options});
+  const data=await response.json().catch(()=>({ok:false,error:"Réponse serveur illisible."}));
+  if(!response.ok||data.ok===false)throw new Error(data.error||"La demande a échoué.");
+  return data;
+}
+function friendsPage(){
+  return '<div class="section friends-page">'+
+    '<div class="sectionhead"><div><span class="eyebrow">ESPACE SOCIAL</span><h1>Mes amis</h1><p class="muted">Crée ton compte CLOSETIA, retrouve les membres inscrits et confirme tes amitiés avec leur accord.</p></div></div>'+
+    '<section class="card account-card"><div id="accountStatus" class="muted" role="status">Vérification de la connexion à l’annuaire…</div>'+
+      '<div id="accountForms" class="account-forms">'+
+        '<form id="accountRegisterForm" class="account-form"><h2>Créer un compte</h2><label for="accountRegisterName">Pseudo unique</label><input id="accountRegisterName" maxlength="24" minlength="3" pattern="[A-Za-z0-9_.-]{3,24}" autocomplete="username" placeholder="ex. alex_style" required><small>3 à 24 caractères : lettres, chiffres, point, tiret ou soulignement.</small><label for="accountRegisterPassword">Mot de passe</label><input id="accountRegisterPassword" type="password" minlength="10" maxlength="128" autocomplete="new-password" required placeholder="10 caractères minimum"><button class="primary" type="submit">Créer mon compte</button></form>'+
+        '<form id="accountLoginForm" class="account-form"><h2>J’ai déjà un compte</h2><label for="accountLoginName">Pseudo</label><input id="accountLoginName" maxlength="24" autocomplete="username" required><label for="accountLoginPassword">Mot de passe</label><input id="accountLoginPassword" type="password" maxlength="128" autocomplete="current-password" required><button class="ghost" type="submit">Me connecter</button></form>'+
+      '</div><section class="card auth-methods"><h2>Autres méthodes de connexion</h2><p class="muted">Ces méthodes ne sont pas encore activées : les boutons restent bloqués jusqu’à la configuration et aux tests de sécurité du serveur.</p><div class="auth-method-grid"><button class="auth-provider" type="button" disabled>Facebook <small>Bientôt disponible</small></button><button class="auth-provider" type="button" disabled>X <small>Bientôt disponible</small></button><button class="auth-provider" type="button" disabled>Apple <small>Bientôt disponible</small></button><button class="auth-provider" type="button" disabled>LinkedIn <small>Bientôt disponible</small></button><button class="auth-provider" type="button" disabled>Code QR <small>Bientôt disponible</small></button><button class="auth-provider" type="button" disabled>Biométrie / Passkey <small>Bientôt disponible</small></button><button class="auth-provider" type="button" disabled>Google <small>Bientôt disponible — en dernier</small></button></div><p class="muted">Une passkey peut utiliser Windows Hello, Touch ID ou Face ID. CLOSETIA ne doit jamais recevoir tes empreintes ou ton visage.</p></section><p id="accountMessage" class="account-message" role="status" aria-live="polite"></p>'+
+      '<div id="accountDirectory" hidden></div></section>'+
+    '<aside class="friends-privacy"><span aria-hidden="true">🔒</span><p><strong>Confidentialité</strong><br>Les mots de passe ne sont jamais affichés dans l’annuaire. Seuls les pseudos sont recherchables. Une demande devient une amitié uniquement lorsque l’autre membre l’accepte.</p></aside>'+
+  '</div>';
+}
+function accountMessage(text,isError){
+  const node=$("accountMessage");if(!node)return;
+  node.textContent=text||"";node.classList.toggle("error",!!isError);node.classList.toggle("success",!isError&&!!text);
+}
+async function loadAccountDirectory(){
+  const status=$("accountStatus"),forms=$("accountForms"),directory=$("accountDirectory");
+  if(!status||!forms||!directory)return;
+  try{
+    const me=await accountApi("me");
+    accountSessionUser=me.user||null;
+    status.innerHTML='<strong>Connecté en tant que '+esc(me.user.username)+'</strong> <button class="ghost" type="button" id="accountLogoutButton">Déconnexion</button>';
+    const logoutButton=$("accountLogoutButton");if(logoutButton)logoutButton.addEventListener("click",logoutAccount);
+    forms.hidden=true;directory.hidden=false;
+    const [friends,requests]=await Promise.all([accountApi("friends"),accountApi("requests")]);
+    directory.innerHTML='<div class="account-directory"><div class="sectionhead"><div><h2>Annuaire des membres</h2><p class="muted">Recherche par pseudo réel parmi les comptes enregistrés.</p></div></div><label for="accountSearch">Rechercher un pseudo</label><div class="friends-input-row"><input id="accountSearch" maxlength="24" autocomplete="off" placeholder="Tape au moins 2 caractères"><button class="ghost" type="button" data-action="accountSearch">Rechercher</button></div><div id="accountSearchResults" class="account-results"><p class="muted">Saisis un pseudo pour rechercher un membre.</p></div>'+
+      '<h2>Demandes reçues <span class="tag">'+requests.requests.length+'</span></h2><div class="account-results">'+(requests.requests.length?requests.requests.map(r=>'<article class="account-result"><div><strong>'+esc(r.username)+'</strong><p class="muted">Demande d’ami reçue</p></div><button class="primary" type="button" data-action="accountAccept" data-id="'+esc(r.id)+'">Accepter</button></article>').join(""):'<p class="muted">Aucune demande en attente.</p>')+'</div>'+
+      '<h2>Mes amis confirmés <span class="tag">'+friends.friends.length+'</span></h2><div class="account-results">'+(friends.friends.length?friends.friends.map(x=>'<article class="account-result"><strong>'+esc(x.username)+'</strong><span class="tag">Ami confirmé</span></article>').join(""):'<p class="muted">Tu n’as pas encore d’ami confirmé.</p>')+'</div></div>';
+    const search=$("accountSearch");
+    if(search)search.addEventListener("input",()=>searchAccountUsers(search.value));
+    const searchButton=directory.querySelector('[data-action="accountSearch"]');
+    if(searchButton)searchButton.addEventListener("click",()=>searchAccountUsers(search?search.value:""));
+    directory.querySelectorAll('[data-action="accountAccept"]').forEach(btn=>btn.addEventListener("click",()=>acceptAccountRequest(btn.dataset.id)));
+  }catch(error){
+    if(error.message&&error.message.includes("Connecte-toi")){
+      accountSessionUser=null;accountGateChecked=true;accountGateError="Ta session a expiré. Reconnecte-toi pour continuer.";
+      document.body.classList.add("auth-required");render();return;
+      status.textContent="Tu n’es pas connecté.";
+      forms.hidden=false;directory.hidden=true;
+    }else{
+      status.textContent="L’annuaire n’est pas encore disponible.";
+      forms.hidden=false;directory.hidden=true;
+      accountMessage(error.message+" Vérifie la liaison D1 CLOSETIA_DB et le secret AUTH_SECRET dans l’environnement Preview.",true);
+    }
+  }
+}
+async function searchAccountUsers(query){
+  const box=$("accountSearchResults");if(!box)return;
+  const q=String(query||"").trim();
+  if(q.length<2){box.innerHTML='<p class="muted">Saisis au moins 2 caractères.</p>';return;}
+  box.innerHTML='<p class="muted">Recherche…</p>';
+  try{
+    const data=await accountApi("search?q="+encodeURIComponent(q));
+    box.innerHTML=data.users.length?data.users.map(u=>'<article class="account-result"><div><strong>'+esc(u.username)+'</strong><p class="muted">Compte existant</p></div><button class="primary" type="button" data-action="accountRequest" data-username="'+esc(u.username)+'">Ajouter</button></article>').join(""):'<p class="muted">Aucun compte correspondant.</p>';
+    box.querySelectorAll('[data-action="accountRequest"]').forEach(btn=>btn.addEventListener("click",async()=>{try{const result=await accountApi("request",{method:"POST",body:JSON.stringify({username:btn.dataset.username})});accountMessage(result.message||"Demande envoyée.",false);await loadAccountDirectory();}catch(e){accountMessage(e.message,true);}}));
+  }catch(e){box.innerHTML='<p class="muted">'+esc(e.message)+'</p>';}
+}
+async function submitEmailRegister(event){
+  event.preventDefault();
+  const form=event.currentTarget;
+  const button=event.submitter||form.querySelector('button[type="submit"]');
+  const username=$("emailRegisterName").value.trim(),email=$("emailRegisterAddress").value.trim(),password=$("emailRegisterPassword").value;
+  if(button){button.disabled=true;button.dataset.originalText=button.textContent;button.textContent="Création du compte…";}
+  accountMessage("Envoi de la demande au serveur CLOSETIA…",false);
+  try{
+    const result=await accountApi("email-register",{method:"POST",body:JSON.stringify({username,email,password})});
+    accountSessionUser=result.user||null;accountGateChecked=true;accountGateError="";
+    accountMessage("Compte e-mail créé. Bienvenue sur CLOSETIA.",false);form.reset();
+    document.body.classList.toggle("auth-required",!accountSessionUser);render();
+  }catch(e){
+    accountMessage(e instanceof TypeError
+      ? "Le serveur CLOSETIA ne répond pas. Vérifie le déploiement Preview et réessaie."
+      : (e.message||"La création du compte a échoué. Réessaie."),true);
+  }finally{
+    if(button){button.disabled=false;button.textContent=button.dataset.originalText||"Créer mon compte e-mail";delete button.dataset.originalText;}
+  }
+}
+async function submitEmailLogin(event){
+  event.preventDefault();
+  const username=$("emailLoginName").value.trim(),email=$("emailLoginAddress").value.trim(),password=$("emailLoginPassword").value;
+  try{
+    const result=await accountApi("email-login",{method:"POST",body:JSON.stringify({username,email,password})});
+    accountSessionUser=result.user||null;accountGateChecked=true;accountGateError="";
+    accountMessage("Connexion par e-mail réussie.",false);event.target.reset();
+    document.body.classList.toggle("auth-required",!accountSessionUser);render();
+  }catch(e){accountMessage(e.message,true);}
+}
+async function requestMagicLink(event){
+  event.preventDefault();
+  try{
+    const result=await accountApi("magic-request",{method:"POST",body:JSON.stringify({username:$("magicLinkName").value.trim(),email:$("magicLinkAddress").value.trim()})});
+    accountMessage(result.message||"Si cette adresse correspond à un compte, un lien a été envoyé.",false);
+    event.target.reset();
+  }catch(e){accountMessage(e.message,true);}
+}
+async function submitAccountForm(event,kind){
+  event.preventDefault();
+  const register=kind==="register";
+  const username=$(register?"accountRegisterName":"accountLoginName").value.trim();
+  const password=$(register?"accountRegisterPassword":"accountLoginPassword").value;
+  try{
+    const result=await accountApi(register?"register":"login",{method:"POST",body:JSON.stringify({username,password})});
+    accountMessage(register?"Compte créé. Bienvenue sur CLOSETIA.":"Connexion réussie.",false);
+    accountSessionUser=result.user||null;
+    accountGateChecked=true;accountGateError="";
+    event.target.reset();
+    document.body.classList.toggle("auth-required",!accountSessionUser);
+    render();
+  }catch(e){accountMessage(e.message,true);}
+}
+async function logoutAccount(){
+  try{await accountApi("logout",{method:"POST",body:"{}"});}catch(e){}
+  accountSessionUser=null;accountGateChecked=true;accountGateError="Déconnexion effectuée. Reconnecte-toi pour continuer.";
+  document.body.classList.add("auth-required");render();
+}
+async function acceptAccountRequest(id){
+  try{const result=await accountApi("accept",{method:"POST",body:JSON.stringify({id})});accountMessage(result.message||"Amitié confirmée.",false);await loadAccountDirectory();}catch(e){accountMessage(e.message,true);}
+}
+function addFriend(){
+  const input=$("friendName");
+  if(input)searchAccountUsers(input.value);
+}
+async function inviteFriend(){
+  var url=location.origin+location.pathname+"#/amis";
+  var status=$("friendInviteStatus");
+  try{
+    if(navigator.share){await navigator.share({title:"Rejoins-moi sur CLOSETIA",text:"Découvre CLOSETIA pour organiser ton dressing et tes tenues.",url:url});}
+    else if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(url);}
+    else {prompt("Copie ce lien d’invitation :",url);}
+    if(status)status.textContent="Lien prêt à partager. Cette invitation n’est pas encore suivie par un système de comptes.";
+  }catch(error){
+    if(error&&error.name!=="AbortError"&&status)status.textContent="Le partage a échoué. Tu peux copier ce lien : "+url;
+  }
+}
+function removeFriend(i){
+  var fs=Array.isArray(db.settings.friends)?db.settings.friends:[];
+  var index=Number(i);
+  if(!Number.isInteger(index)||index<0||index>=fs.length)return;
+  var removed=fs.splice(index,1)[0];
+  db.settings.friends=fs;
+  if(!save()){db.settings.friends.splice(index,0,removed);return;}
+  render();
+}
 function smartWeather(){
   var p=db.settings.profile||{},box=$("weatherBox");
   if(!box)return;
@@ -949,6 +1355,7 @@ function home(){
     <div class="dashboard">
       <a class="card feature" href="#/dressing"><b>👕 Dressing</b><span>${db.items.length} vêtement${db.items.length>1?"s":""} · recherche · filtres · favoris</span></a>
       <a class="card feature" href="#/tenues"><b>✨ Tenues</b><span>${db.outfits.length} tenue${db.outfits.length>1?"s":""} · générateur</span></a>
+      <a class="card feature" href="#/wishlist"><b>♡ Liste d’envies</b><span>${(db.settings.wishlist||[]).length} article${(db.settings.wishlist||[]).length>1?"s":""} à garder en mémoire</span></a>
       <a class="card feature" href="#/palette"><b>🎨 Couleurs</b><span>Répartition et préférences</span></a>
       <a class="card feature" href="#/calendrier"><b>📅 Calendrier</b><span>Planifier les tenues</span></a><a class="card feature" href="#/profil"><b>🧭 Mon style</b><span>Questionnaire · marques · budget</span></a><a class="card feature" href="#/colorimetrie"><b>🎨 Colorimétrie</b><span>Photo + préférences couleurs</span></a><a class="card feature" href="#/star"><b>⭐ Outfit Star</b><span>Recommandations personnalisées</span></a><a class="card feature" href="#/amis"><b>👥 Amis</b><span>Préparer le partage de tenues</span></a>
     </div>`;
@@ -1109,18 +1516,54 @@ function adminUnavailablePage(){
   return '<div class="section"><div class="card admin-panel"><span class="eyebrow">ACCÈS RESTREINT</span><h1>Administration temporairement désactivée</h1><p class="muted">L’espace administrateur sera réactivé après le déploiement de la version protégée sur Cloudflare Pages. Cette version GitHub Pages ne peut pas appliquer l’authentification côté serveur.</p><a class="primary" href="./">Retour à CLOSETIA</a></div></div>';
 }
 
+
+function connectionsPage(){
+  const groups=[
+    {title:"Authentification",items:[
+      {name:"Pseudo + mot de passe",desc:"Méthode de compte déjà présente dans CLOSETIA.",state:"Disponible dans la version actuelle",kind:"existing"},
+      {name:"E-mail + mot de passe",desc:"Inscription et connexion par adresse e-mail avec mot de passe haché côté serveur.",state:"Code ajouté en Preview — test fonctionnel à effectuer",kind:"email"} ,
+      {name:"Lien magique par e-mail",desc:"Lien à usage unique valable 15 minutes.",state:"Code ajouté — nécessite RESEND_API_KEY et EMAIL_FROM",kind:"email"},
+      {name:"Facebook OAuth",desc:"Première intégration à réaliser : application Meta, identifiants conservés côté serveur, rappel OAuth et tests de sécurité.",state:"Bientôt disponible",kind:"planned"},
+      {name:"X OAuth",desc:"À configurer après Facebook : application fournisseur, identifiants côté serveur et tests de la route de rappel.",state:"Bientôt disponible",kind:"planned"},
+      {name:"Apple OAuth",desc:"À configurer après X : identifiants Apple, validation du retour OAuth et tests serveur.",state:"Bientôt disponible",kind:"planned"},
+      {name:"LinkedIn OAuth",desc:"À configurer après Apple : application fournisseur, identifiants côté serveur et tests serveur.",state:"Bientôt disponible",kind:"planned"},
+      {name:"Code QR — appairage sécurisé",desc:"Appairage temporaire entre appareils, confirmé par un appareil déjà connecté. À développer et tester.",state:"Bientôt disponible",kind:"planned"},
+      {name:"Biométrie / Passkey",desc:"WebAuthn avec Face ID, Touch ID ou Windows Hello selon l’appareil. CLOSETIA ne reçoit ni ne stocke les données biométriques.",state:"Bientôt disponible",kind:"planned"},
+      {name:"Google OAuth",desc:"Dernière intégration prévue, après les autres méthodes et les tests. Aucun bouton ne simule une connexion.",state:"Bientôt disponible — en dernier",kind:"planned"}
+    ]},
+    {title:"Assistants IA",items:[
+      {name:"OpenAI / ChatGPT",desc:"Une connexion API CLOSETIA dédiée, distincte de ton compte ChatGPT.",state:"Intégration API non configurée",kind:"ai"},
+      {name:"Google Gemini",desc:"Une connexion API CLOSETIA dédiée.",state:"Intégration API non configurée",kind:"ai"},
+      {name:"Anthropic Claude",desc:"Une connexion API CLOSETIA dédiée.",state:"Intégration API non configurée",kind:"ai"}
+    ]},
+    {title:"Autres applications",items:[
+      {name:"Catalogue de connexions",desc:"Les prochaines intégrations pourront être ajoutées ici avec autorisations explicites et révocation.",state:"Espace de gestion en préparation",kind:"planned"}
+    ]}
+  ];
+  return '<div class="section connections-page"><span class="eyebrow">ESPACE PRIVÉ</span><h1>Connexions</h1><p class="muted">Gère ici les fournisseurs d’identité et les intégrations externes de CLOSETIA. Aucun service n’est déclaré connecté sans vérification serveur.</p><div class="notice connections-notice">Aucune connexion externe n’est activée par cette page. Les statuts ci-dessous décrivent l’état de l’intégration, pas une connexion réelle.</div>'+
+    groups.map(function(group){return '<section class="connection-group"><h2>'+esc(group.title)+'</h2><div class="connection-grid">'+group.items.map(function(item){return '<article class="card connection-card"><div class="connection-title"><h3>'+esc(item.name)+'</h3><span class="connection-state '+(item.kind==="existing"?"state-available":"state-pending")+'">'+esc(item.state)+'</span></div><p class="muted">'+esc(item.desc)+'</p>'+ (item.kind==="existing" ? '<span class="muted">La connexion actuelle reste disponible via l’écran de compte.</span>' : '<button class="ghost" type="button" disabled aria-disabled="true">Indisponible tant que non configuré</button>')+'</article>';}).join("")+'</div></section>';}).join("")+
+    '<section class="card connection-setup"><h2>Préparation nécessaire</h2><ul><li>Pour les liens e-mail : fournisseur d’envoi vérifié et secrets configurés dans Cloudflare Preview.</li><li>Pour Google, Facebook, X, Apple et LinkedIn : créer les applications OAuth, configurer les URL de rappel exactes, garder les secrets côté serveur et tester chaque flux avant activation.</li><li>Pour le QR : générer un jeton aléatoire à usage unique, avec expiration courte, confirmation sur l’appareil connecté et invalidation après usage.</li><li>Pour les passkeys : implémenter WebAuthn côté serveur, vérifier les défis et signatures, et stocker les clés publiques — jamais les empreintes ou le visage.</li><li>Pour chaque assistant IA : clé API serveur dédiée, permissions minimales et limites d’usage.</li></ul><p class="muted">Les clés secrètes ne doivent jamais être enregistrées dans le navigateur ni partagées dans le chat. La production et sa base D1 ne sont pas touchées.</p></section></div>';
+}
+
 function render(){
   const hash=location.hash || "#/";
   const page=hash.startsWith("#/") ? hash.slice(2) : "";
+  if(page==="admin" && !/\/(?:admin\.html|admin-panel\.html)$/i.test(location.pathname)){ location.replace("admin-panel.html#/admin"); return; }
   const app=$("app");
   if(!app) return;
+  document.body.classList.toggle("auth-required",!accountSessionUser);
+  if(!accountGateChecked || !accountSessionUser){
+    app.innerHTML=authGatePage();
+    bindAuthGate();
+    return;
+  }
   const active=document.activeElement;
   const activeId=active&&active.id;
   const selectionStart=active&&typeof active.selectionStart==="number"?active.selectionStart:null;
   const selectionEnd=active&&typeof active.selectionEnd==="number"?active.selectionEnd:null;
   document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("active",a.getAttribute("href")==="#/"+page));
   try{
-    app.innerHTML=page==="dressing"?dressing():page==="tenues"?outfits():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="stars"?celebrityLooksPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():page==="memes"?sameClothesPage():page==="admin"?adminUnavailablePage():home();
+    app.innerHTML=page==="connexions"?connectionsPage():page==="dressing"?dressing():page==="tenues"?outfits():page==="wishlist"?wishlistPage():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="stars"?celebrityLooksPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():page==="memes"?sameClothesPage():page==="admin"?adminUnavailablePage():home();
     bindPage();
     if(page==="stars") setTimeout(loadCelebrityLooks,0);
     if(activeId){
@@ -1162,9 +1605,16 @@ function bindPage(){
       else if(action==="copyHex") copyHex(el.dataset.hex);
       else if(action==="clearPhotoPalette"){db.settings.colorimetry=db.settings.colorimetry||{};db.settings.colorimetry.palette=[];db.settings.colorimetry.status="Palette effacée";save();}
       else if(action==="day") setCalendarDay(el.dataset.day); else if(action==="calendarPrev"){calendarOffset--;render()} else if(action==="calendarNext"){calendarOffset++;render()}
-      else if(action==="adminExportJSON") exportJSON(); else if(action==="adminExportCSV") exportCSV(); else if(action==="adminImportJSON"){importFile.value="";importFile.click();} else if(action==="adminSettings") openSettings(); else if(action==="adminCheckCloud"){if(cloudToken()) syncCloudNow(); else openSettings();} else if(action==="demo") demo(); else if(action==="prefColor") togglePrefColor(el.dataset.color); else if(action==="searchBrands") searchBrands(); else if(action==="toggleBrand") toggleBrand(el.dataset.brand); else if(action==="addManualBrand") addManualBrand(); else if(action==="addFriend") addFriend(); else if(action==="removeFriend") removeFriend(el.dataset.id);
+      else if(action==="adminExportJSON") exportJSON(); else if(action==="adminExportCSV") exportCSV(); else if(action==="adminImportJSON"){importFile.value="";importFile.click();} else if(action==="adminSettings") openSettings(); else if(action==="adminCheckCloud"){if(cloudToken()) syncCloudNow(); else openSettings();} else if(action==="demo") demo(); else if(action==="prefColor") togglePrefColor(el.dataset.color); else if(action==="searchBrands") searchBrands(); else if(action==="toggleBrand") toggleBrand(el.dataset.brand); else if(action==="addManualBrand") addManualBrand(); else if(action==="addFriend") addFriend(); else if(action==="inviteFriend") inviteFriend(); else if(action==="removeFriend") removeFriend(el.dataset.id); else if(action==="clearFriendSearch"){const search=$("friendSearch");if(search)search.value="";render();}
+      else if(action==="removeWishlist") removeWishlistItem(el.dataset.id);
     });
   });
+  if($("wishlistForm")) $("wishlistForm").addEventListener("submit",event=>{event.preventDefault();addWishlistItem();});
+  if($("friendForm")) $("friendForm").addEventListener("submit",event=>{event.preventDefault();addFriend();});
+  if($("accountRegisterForm")) $("accountRegisterForm").addEventListener("submit",event=>submitAccountForm(event,"register"));
+  if($("accountLoginForm")) $("accountLoginForm").addEventListener("submit",event=>submitAccountForm(event,"login"));
+  if(location.hash==="#/amis") setTimeout(loadAccountDirectory,0);
+  if($("friendSearch")) $("friendSearch").addEventListener("input",render);
   if($("saveProfile")) $("saveProfile").onclick=saveProfileData;
   if($("profileCountry")) loadWeatherCountries();
   if($("colorPhoto")) $("colorPhoto").onchange=function(e){analyzeColorPhoto(e.target.files[0])};
@@ -1185,7 +1635,8 @@ db.items.forEach(item => {
   }
 });
 save(false);
-if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+if("serviceWorker" in navigator && !/\/(?:admin\.html|admin-panel\.html)$/i.test(location.pathname)) navigator.serviceWorker.register("sw.js").catch(()=>{});
 render();
+initializeAccountGate();
 checkCloudSession();
 })();
