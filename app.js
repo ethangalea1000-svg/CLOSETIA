@@ -1082,6 +1082,40 @@ function removeWishlistItem(id){
   if(!save()){list.splice(index,0,removed);}
 }
 
+let accountSessionUser = null;
+let accountGateChecked = false;
+let accountGateError = "";
+
+function authGatePage(){
+  return '<div class="section auth-gate"><section class="hero auth-hero"><span class="eyebrow">ESPACE PRIVÉ</span><h1>Bienvenue sur <span>CLOSETIA.</span></h1><p>Connecte-toi ou crée ton compte pour accéder à ton dressing et à tes amis.</p><div class="auth-gate-badge">Connexion obligatoire · session sécurisée</div></section>'+
+    '<section class="card auth-card"><div class="sectionhead"><div><h2>Accéder à CLOSETIA</h2><p class="muted">Ton espace reste verrouillé tant que tu n’es pas connecté.</p></div></div>'+
+    (accountGateError?'<p class="account-message error">'+esc(accountGateError)+'</p>':'')+
+    '<div class="account-forms">'+
+      '<form id="accountLoginForm" class="account-form"><h2>Se connecter</h2><label for="accountLoginName">Pseudo</label><input id="accountLoginName" maxlength="24" autocomplete="username" required><label for="accountLoginPassword">Mot de passe</label><input id="accountLoginPassword" type="password" maxlength="128" autocomplete="current-password" required><button class="primary" type="submit">Se connecter</button></form>'+
+      '<form id="accountRegisterForm" class="account-form"><h2>Créer un compte</h2><label for="accountRegisterName">Pseudo unique</label><input id="accountRegisterName" maxlength="24" minlength="3" pattern="[A-Za-z0-9_.-]{3,24}" autocomplete="username" placeholder="ex. alex_style" required><small>3 à 24 caractères : lettres, chiffres, point, tiret ou soulignement.</small><label for="accountRegisterPassword">Mot de passe</label><input id="accountRegisterPassword" type="password" minlength="10" maxlength="128" autocomplete="new-password" required placeholder="10 caractères minimum"><button class="ghost" type="submit">Créer mon compte</button></form>'+
+    '</div><p id="accountMessage" class="account-message" role="status" aria-live="polite"></p><p class="muted auth-note">La connexion protège l’accès à l’interface. Pour protéger aussi les données enregistrées localement sur un appareil partagé, verrouille ta session Windows et ne partage pas cet appareil.</p></section></div>';
+}
+
+function bindAuthGate(){
+  if($("accountRegisterForm")) $("accountRegisterForm").addEventListener("submit",event=>submitAccountForm(event,"register"));
+  if($("accountLoginForm")) $("accountLoginForm").addEventListener("submit",event=>submitAccountForm(event,"login"));
+}
+
+async function initializeAccountGate(){
+  try{
+    const me=await accountApi("me");
+    accountSessionUser=me.user||null;
+    accountGateError="";
+  }catch(error){
+    accountSessionUser=null;
+    accountGateError=/Connecte-toi/i.test(error.message)?"Connecte-toi pour continuer.":error.message+" L’annuaire nécessite la base D1 CLOSETIA_DB et le secret AUTH_SECRET dans la Preview.";
+  }finally{
+    accountGateChecked=true;
+    document.body.classList.toggle("auth-required",!accountSessionUser);
+    render();
+  }
+}
+
 async function accountApi(path, options={}){
   const response=await fetch("/api/accounts/"+path,{credentials:"same-origin",headers:{"Content-Type":"application/json",...(options.headers||{})},...options});
   const data=await response.json().catch(()=>({ok:false,error:"Réponse serveur illisible."}));
@@ -1109,6 +1143,7 @@ async function loadAccountDirectory(){
   if(!status||!forms||!directory)return;
   try{
     const me=await accountApi("me");
+    accountSessionUser=me.user||null;
     status.innerHTML='<strong>Connecté en tant que '+esc(me.user.username)+'</strong> <button class="ghost" type="button" id="accountLogoutButton">Déconnexion</button>';
     const logoutButton=$("accountLogoutButton");if(logoutButton)logoutButton.addEventListener("click",logoutAccount);
     forms.hidden=true;directory.hidden=false;
@@ -1123,6 +1158,8 @@ async function loadAccountDirectory(){
     directory.querySelectorAll('[data-action="accountAccept"]').forEach(btn=>btn.addEventListener("click",()=>acceptAccountRequest(btn.dataset.id)));
   }catch(error){
     if(error.message&&error.message.includes("Connecte-toi")){
+      accountSessionUser=null;accountGateChecked=true;accountGateError="Ta session a expiré. Reconnecte-toi pour continuer.";
+      document.body.classList.add("auth-required");render();return;
       status.textContent="Tu n’es pas connecté.";
       forms.hidden=false;directory.hidden=true;
     }else{
@@ -1151,12 +1188,17 @@ async function submitAccountForm(event,kind){
   try{
     const result=await accountApi(register?"register":"login",{method:"POST",body:JSON.stringify({username,password})});
     accountMessage(register?"Compte créé. Bienvenue sur CLOSETIA.":"Connexion réussie.",false);
+    accountSessionUser=result.user||null;
+    accountGateChecked=true;accountGateError="";
     event.target.reset();
-    await loadAccountDirectory();
+    document.body.classList.toggle("auth-required",!accountSessionUser);
+    render();
   }catch(e){accountMessage(e.message,true);}
 }
 async function logoutAccount(){
-  try{await accountApi("logout",{method:"POST",body:"{}"});accountMessage("Déconnexion effectuée.",false);await loadAccountDirectory();}catch(e){accountMessage(e.message,true);}
+  try{await accountApi("logout",{method:"POST",body:"{}"});}catch(e){}
+  accountSessionUser=null;accountGateChecked=true;accountGateError="Déconnexion effectuée. Reconnecte-toi pour continuer.";
+  document.body.classList.add("auth-required");render();
 }
 async function acceptAccountRequest(id){
   try{const result=await accountApi("accept",{method:"POST",body:JSON.stringify({id})});accountMessage(result.message||"Amitié confirmée.",false);await loadAccountDirectory();}catch(e){accountMessage(e.message,true);}
@@ -1428,6 +1470,12 @@ function render(){
   const page=hash.startsWith("#/") ? hash.slice(2) : "";
   const app=$("app");
   if(!app) return;
+  document.body.classList.toggle("auth-required",!accountSessionUser);
+  if(!accountGateChecked || !accountSessionUser){
+    app.innerHTML=authGatePage();
+    bindAuthGate();
+    return;
+  }
   const active=document.activeElement;
   const activeId=active&&active.id;
   const selectionStart=active&&typeof active.selectionStart==="number"?active.selectionStart:null;
@@ -1508,5 +1556,6 @@ db.items.forEach(item => {
 save(false);
 if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 render();
+initializeAccountGate();
 checkCloudSession();
 })();
