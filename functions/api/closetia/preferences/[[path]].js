@@ -1,5 +1,8 @@
 const COOKIE = "closetia_session";
 const encoder = new TextEncoder();
+const MAX_SNAPSHOT_BYTES = 2_000_000;
+const COLLECTION = "preferences";
+const LEGACY_LOCAL_ID = "main";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -16,7 +19,7 @@ function json(data, status = 200) {
 function decodeBase64Url(value) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
   const binary = atob(normalized + "=".repeat((4 - normalized.length % 4) % 4));
-  return Uint8Array.from(binary, char => char.charCodeAt(0));
+  return Uint8Array.from(normalized.length ? binary : "", char => char.charCodeAt(0));
 }
 
 async function hmac(value, secret) {
@@ -61,11 +64,10 @@ async function authenticatedUser(request, env) {
 }
 
 export async function onRequest({ request, env }) {
-  // Fail closed unless Preview has an explicitly separate storage binding.
-  // Never write closet snapshots through CLOSETIA_DB, which also holds account records.
-  if (env.CLOSETIA_PREVIEW_SYNC_ENABLED !== "true" || !env.CLOSETIA_PREVIEW_DB ||
-      !env.CLOSETIA_DB || !env.AUTH_SECRET || String(env.AUTH_SECRET).length < 32) {
-    return json({ ok: false, error: "La synchronisation Preview n’est pas activée. Il faut configurer une base D1 Preview distincte avant tout test." }, 503);
+  // The existing D1 database is intentional: snapshots live in closetia_records,
+  // isolated by account ID. The legacy "main" snapshot is never overwritten here.
+  if (!env.CLOSETIA_DB || !env.AUTH_SECRET || String(env.AUTH_SECRET).length < 32) {
+    return json({ ok: false, error: "La synchronisation Cloud est indisponible : configuration serveur incomplète." }, 503);
   }
 
   const url = new URL(request.url);
@@ -85,39 +87,62 @@ export async function onRequest({ request, env }) {
   const user = await authenticatedUser(request, env);
   if (!user) return json({ ok: false, error: "Connecte-toi à ton compte CLOSETIA pour synchroniser." }, 401);
 
+  // Protect the pre-existing local snapshot even if an account ID ever equals "main".
+  if (user.id === LEGACY_LOCAL_ID) {
+    return json({ ok: false, error: "Identifiant de compte réservé pour protéger la sauvegarde existante." }, 409);
+  }
+
   try {
     if (request.method === "GET") {
-      const row = await env.CLOSETIA_PREVIEW_DB
-        .prepare("SELECT data_json, updated_at FROM closetia_user_preferences WHERE user_id = ?")
-        .bind(user.id)
+      const row = await env.CLOSETIA_DB
+        .prepare("SELECT data, updated_at FROM closetia_records WHERE collection = ? AND id = ?")
+        .bind(COLLECTION, user.id)
         .first();
+
       if (!row) return json({ ok: true, record: null });
+
       let data;
       try {
-        data = JSON.parse(row.data_json);
+        data = JSON.parse(row.data);
       } catch (_) {
         return json({ ok: false, error: "Les données Cloud enregistrées sont illisibles. Elles n’ont pas été modifiées." }, 500);
+      }
+      if (!data || typeof data !== "object" || Array.isArray(data) ||
+          !Array.isArray(data.items) || !Array.isArray(data.outfits)) {
+        return json({ ok: false, error: "Le format des données Cloud enregistrées est invalide. Elles n’ont pas été modifiées." }, 500);
       }
       return json({ ok: true, record: { data, updated_at: row.updated_at } });
     }
 
     const contentLength = Number(request.headers.get("Content-Length") || 0);
-    if (contentLength > 2_000_000) return json({ ok: false, error: "Sauvegarde trop volumineuse (maximum 2 Mo)." }, 413);
+    if (contentLength > MAX_SNAPSHOT_BYTES) {
+      return json({ ok: false, error: "Sauvegarde trop volumineuse (maximum 2 Mo)." }, 413);
+    }
 
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (_) {
+      return json({ ok: false, error: "Corps JSON invalide." }, 400);
+    }
+
     if (!body || !body.data || typeof body.data !== "object" || Array.isArray(body.data) ||
         !Array.isArray(body.data.items) || !Array.isArray(body.data.outfits)) {
       return json({ ok: false, error: "Format de sauvegarde CLOSETIA invalide." }, 400);
     }
+
     const serialized = JSON.stringify(body.data);
-    if (serialized.length > 2_000_000) return json({ ok: false, error: "Sauvegarde trop volumineuse (maximum 2 Mo)." }, 413);
+    if (encoder.encode(serialized).byteLength > MAX_SNAPSHOT_BYTES) {
+      return json({ ok: false, error: "Sauvegarde trop volumineuse (maximum 2 Mo)." }, 413);
+    }
 
     const now = new Date().toISOString();
-    await env.CLOSETIA_PREVIEW_DB.prepare(`
-      INSERT INTO closetia_user_preferences (user_id, data_json, updated_at)
-      VALUES (?, ?, ?)
-      ON CONFLICT(user_id) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at
-    `).bind(user.id, serialized, now).run();
+    await env.CLOSETIA_DB.prepare(`
+      INSERT INTO closetia_records (collection, id, data, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(collection, id)
+      DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
+    `).bind(COLLECTION, user.id, serialized, now).run();
 
     return json({ ok: true, record: { data: body.data, updated_at: now } });
   } catch (error) {
