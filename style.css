@@ -316,3 +316,24 @@ footer{padding:24px 16px 34px;text-align:center;color:var(--muted);font-size:12p
 .seo-intro p,.seo-intro li{max-width:760px;color:var(--muted);font-size:17px;line-height:1.7}
 .seo-intro ul{padding-left:24px}
 @media(max-width:600px){.seo-intro{padding:23px;border-radius:18px}.seo-intro h1{font-size:36px;letter-spacing:-.035em}.seo-intro p,.seo-intro li{font-size:15px}}
+
+
+/* Account directory */
+.account-card{margin-top:20px;padding:clamp(18px,3vw,30px)}
+.account-forms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
+.account-form{display:flex;flex-direction:column;gap:10px;padding:20px;border:1px solid var(--line);border-radius:18px;background:#fff}
+.account-form h2,.account-directory h2{margin:0 0 5px}
+.account-form label,.account-directory label{font-weight:700;font-size:14px}
+.account-form input,.account-directory input{width:100%;min-width:0;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink)}
+.account-form small{line-height:1.5}
+.account-message{min-height:1.4em;margin:14px 0 0;font-size:14px}
+.account-message.error{color:var(--danger)}
+.account-message.success{color:var(--ok)}
+.account-directory{margin-top:24px}
+.account-directory h2{margin-top:25px;font-size:21px}
+.account-results{display:grid;gap:9px;margin-top:12px}
+.account-result{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;border:1px solid var(--line);border-radius:14px;background:#fff}
+.account-result p{margin:4px 0 0}
+.account-result .tag{white-space:nowrap}
+.account-directory [hidden],.account-forms[hidden],#accountDirectory[hidden]{display:none!important}
+@media(max-width:650px){.account-forms{grid-template-columns:1fr}.account-result{align-items:flex-start;flex-wrap:wrap}.account-result button{width:100%}}
