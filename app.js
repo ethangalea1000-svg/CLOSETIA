@@ -1083,10 +1083,43 @@ function removeWishlistItem(id){
 }
 
 function friendsPage(){
-  var fs=db.settings.friends||[]; return "<div class=\"section\"><span class=\"eyebrow\">SOCIAL</span><h1>Amis</h1><div class=\"card\"><p class=\"muted\">Les amis sont préparés localement. Le partage en ligne sera branché sur D1/R2 ensuite.</p><div class=\"toolbar\"><input id=\"friendName\" placeholder=\"Nom de l’ami\"><button class=\"primary\" data-action=\"addFriend\">Ajouter</button></div></div><div class=\"grid\">"+(fs.length?fs.map(function(x,i){return "<div class=\"card\"><h3>👤 "+esc(x)+"</h3><button class=\"danger\" data-action=\"removeFriend\" data-id=\""+i+"\">Supprimer</button></div>"}).join(""):"<div class=\"empty\">Aucun ami.</div>")+"</div></div>";
+  var fs=Array.isArray(db.settings.friends)?db.settings.friends:[];
+  var q=(($("friendSearch")||{}).value||"").trim().toLocaleLowerCase("fr");
+  var visible=fs.map(function(name,index){return {name:String(name),index:index};}).filter(function(x){return !q||x.name.toLocaleLowerCase("fr").includes(q);});
+  function initials(name){return String(name).trim().split(/\\s+/).filter(Boolean).slice(0,2).map(function(part){return part.charAt(0).toLocaleUpperCase("fr");}).join("")||"?";}
+  return '<div class="section friends-page">'+
+    '<div class="sectionhead"><div><span class="eyebrow">ESPACE SOCIAL</span><h1>Mes amis</h1><p class="muted">Prépare tes échanges de tenues et garde ta liste d’amis organisée.</p></div><div class="friends-total"><strong>'+fs.length+'</strong><span>'+(fs.length>1?'amis enregistrés':'ami enregistré')+'</span></div></div>'+
+    '<div class="friends-layout">'+
+      '<section class="card friends-add-card"><span class="friends-icon" aria-hidden="true">＋</span><h2>Ajouter un ami</h2><p class="muted">Enregistre son prénom ou son pseudo pour le retrouver facilement.</p>'+
+        '<form id="friendForm" class="friends-form"><label for="friendName">Prénom ou pseudo</label><div class="friends-input-row"><input id="friendName" name="friendName" maxlength="40" autocomplete="off" placeholder="Ex. Alex" required><button class="primary" type="submit">Ajouter</button></div><p class="friends-hint">Pour l’instant, cette liste est privée et enregistrée sur cet appareil/compte synchronisé. Elle n’envoie pas d’invitation.</p></form>'+
+      '</section>'+
+      '<section class="friends-list-panel"><div class="friends-list-head"><div><h2>Ma liste</h2><p class="muted">'+(q?'Résultats de recherche':'Tes contacts CLOSETIA')+'</p></div><label class="friends-search"><span class="sr-only">Rechercher un ami</span><input id="friendSearch" type="search" placeholder="Rechercher…" value="'+esc(q)+'" aria-label="Rechercher un ami"></label></div>'+
+      (visible.length?'<div class="friends-grid">'+visible.map(function(x){return '<article class="card friend-card"><div class="friend-avatar" aria-hidden="true">'+esc(initials(x.name))+'</div><div class="friend-info"><h3>'+esc(x.name)+'</h3><p class="muted">Contact enregistré</p></div><button class="friend-remove" type="button" data-action="removeFriend" data-id="'+x.index+'" aria-label="Supprimer '+esc(x.name)+'" title="Supprimer cet ami">Retirer</button></article>';}).join("")+'</div>':
+      '<div class="empty friends-empty"><span class="friends-empty-icon" aria-hidden="true">♧</span><h3>'+(q?'Aucun résultat':'Ta liste commence ici')+'</h3><p>'+(q?'Essaie un autre prénom ou pseudo.':'Ajoute un ami pour garder son contact dans CLOSETIA.')+'</p>'+(q?'<button class="ghost" type="button" data-action="clearFriendSearch">Effacer la recherche</button>':'')+'</div>')+
+      '</section></div>'+
+      '<aside class="friends-privacy"><span aria-hidden="true">🔒</span><p><strong>Confidentialité</strong><br>Les noms de cette liste ne sont pas publics. Le partage réel de tenues et les invitations entre comptes ne sont pas encore activés.</p></aside>'+
+    '</div>';
 }
-function addFriend(){var n=(($("friendName")||{}).value||"").trim();if(!n)return;var fs=db.settings.friends||[];if(fs.some(function(x){return String(x).toLowerCase()===n.toLowerCase()})){alert("Cet ami est déjà dans la liste.");return}db.settings.friends=fs.concat(n);save()}
-function removeFriend(i){db.settings.friends.splice(Number(i),1);save()}
+function addFriend(){
+  var input=$("friendName"), n=((input||{}).value||"").trim().replace(/\\s+/g," ");
+  if(!n)return;
+  if(n.length>40){alert("Le prénom ou pseudo doit contenir au maximum 40 caractères.");return;}
+  var fs=Array.isArray(db.settings.friends)?db.settings.friends:[];
+  if(fs.some(function(x){return String(x).trim().toLocaleLowerCase("fr")===n.toLocaleLowerCase("fr");})){
+    alert("Cet ami est déjà dans la liste.");return;
+  }
+  db.settings.friends=fs.concat(n);
+  if(save())render();
+}
+function removeFriend(i){
+  var fs=Array.isArray(db.settings.friends)?db.settings.friends:[];
+  var index=Number(i);
+  if(!Number.isInteger(index)||index<0||index>=fs.length)return;
+  var removed=fs.splice(index,1)[0];
+  db.settings.friends=fs;
+  if(!save()){db.settings.friends.splice(index,0,removed);return;}
+  render();
+}
 function smartWeather(){
   var p=db.settings.profile||{},box=$("weatherBox");
   if(!box)return;
@@ -1377,11 +1410,13 @@ function bindPage(){
       else if(action==="copyHex") copyHex(el.dataset.hex);
       else if(action==="clearPhotoPalette"){db.settings.colorimetry=db.settings.colorimetry||{};db.settings.colorimetry.palette=[];db.settings.colorimetry.status="Palette effacée";save();}
       else if(action==="day") setCalendarDay(el.dataset.day); else if(action==="calendarPrev"){calendarOffset--;render()} else if(action==="calendarNext"){calendarOffset++;render()}
-      else if(action==="adminExportJSON") exportJSON(); else if(action==="adminExportCSV") exportCSV(); else if(action==="adminImportJSON"){importFile.value="";importFile.click();} else if(action==="adminSettings") openSettings(); else if(action==="adminCheckCloud"){if(cloudToken()) syncCloudNow(); else openSettings();} else if(action==="demo") demo(); else if(action==="prefColor") togglePrefColor(el.dataset.color); else if(action==="searchBrands") searchBrands(); else if(action==="toggleBrand") toggleBrand(el.dataset.brand); else if(action==="addManualBrand") addManualBrand(); else if(action==="addFriend") addFriend(); else if(action==="removeFriend") removeFriend(el.dataset.id);
+      else if(action==="adminExportJSON") exportJSON(); else if(action==="adminExportCSV") exportCSV(); else if(action==="adminImportJSON"){importFile.value="";importFile.click();} else if(action==="adminSettings") openSettings(); else if(action==="adminCheckCloud"){if(cloudToken()) syncCloudNow(); else openSettings();} else if(action==="demo") demo(); else if(action==="prefColor") togglePrefColor(el.dataset.color); else if(action==="searchBrands") searchBrands(); else if(action==="toggleBrand") toggleBrand(el.dataset.brand); else if(action==="addManualBrand") addManualBrand(); else if(action==="addFriend") addFriend(); else if(action==="removeFriend") removeFriend(el.dataset.id); else if(action==="clearFriendSearch"){const search=$("friendSearch");if(search)search.value="";render();}
       else if(action==="removeWishlist") removeWishlistItem(el.dataset.id);
     });
   });
   if($("wishlistForm")) $("wishlistForm").addEventListener("submit",event=>{event.preventDefault();addWishlistItem();});
+  if($("friendForm")) $("friendForm").addEventListener("submit",event=>{event.preventDefault();addFriend();});
+  if($("friendSearch")) $("friendSearch").addEventListener("input",render);
   if($("saveProfile")) $("saveProfile").onclick=saveProfileData;
   if($("profileCountry")) loadWeatherCountries();
   if($("colorPhoto")) $("colorPhoto").onchange=function(e){analyzeColorPhoto(e.target.files[0])};
