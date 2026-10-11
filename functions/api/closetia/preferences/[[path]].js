@@ -61,8 +61,11 @@ async function authenticatedUser(request, env) {
 }
 
 export async function onRequest({ request, env }) {
-  if (!env.CLOSETIA_DB || !env.AUTH_SECRET || String(env.AUTH_SECRET).length < 32) {
-    return json({ ok: false, error: "Le service de synchronisation n’est pas configuré dans cet environnement Preview." }, 503);
+  // Fail closed unless Preview has an explicitly separate storage binding.
+  // Never write closet snapshots through CLOSETIA_DB, which also holds account records.
+  if (env.CLOSETIA_PREVIEW_SYNC_ENABLED !== "true" || !env.CLOSETIA_PREVIEW_DB ||
+      !env.CLOSETIA_DB || !env.AUTH_SECRET || String(env.AUTH_SECRET).length < 32) {
+    return json({ ok: false, error: "La synchronisation Preview n’est pas activée. Il faut configurer une base D1 Preview distincte avant tout test." }, 503);
   }
 
   const url = new URL(request.url);
@@ -83,16 +86,8 @@ export async function onRequest({ request, env }) {
   if (!user) return json({ ok: false, error: "Connecte-toi à ton compte CLOSETIA pour synchroniser." }, 401);
 
   try {
-    await env.CLOSETIA_DB.prepare(`
-      CREATE TABLE IF NOT EXISTS closetia_user_preferences (
-        user_id TEXT PRIMARY KEY,
-        data_json TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      )
-    `).run();
-
     if (request.method === "GET") {
-      const row = await env.CLOSETIA_DB
+      const row = await env.CLOSETIA_PREVIEW_DB
         .prepare("SELECT data_json, updated_at FROM closetia_user_preferences WHERE user_id = ?")
         .bind(user.id)
         .first();
@@ -118,7 +113,7 @@ export async function onRequest({ request, env }) {
     if (serialized.length > 2_000_000) return json({ ok: false, error: "Sauvegarde trop volumineuse (maximum 2 Mo)." }, 413);
 
     const now = new Date().toISOString();
-    await env.CLOSETIA_DB.prepare(`
+    await env.CLOSETIA_PREVIEW_DB.prepare(`
       INSERT INTO closetia_user_preferences (user_id, data_json, updated_at)
       VALUES (?, ?, ?)
       ON CONFLICT(user_id) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at
