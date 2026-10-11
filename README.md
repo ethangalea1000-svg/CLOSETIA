@@ -59,3 +59,17 @@ L'annuaire utilise la fonction Pages `functions/api/accounts/[[path]].js` et D1.
 4. Ne pas activer en production avant les tests de sécurité et de fonctionnement.
 
 La fonction crée ses trois tables dédiées `closetia_accounts`, `closetia_friend_requests` et `closetia_friendships` dans la base D1 liée à cet environnement. **Ne pas utiliser la base de production** : l’initialisation crée des tables et écrit les comptes dans la base liée. Les mots de passe sont hachés avec PBKDF2; la session est un cookie signé, HttpOnly, Secure et SameSite=Lax. Le répertoire n'est pas opérationnel tant que le binding et le secret ne sont pas configurés.
+
+
+## Authentification par e-mail — Preview uniquement
+
+La branche Preview inclut désormais des routes pour la création de compte avec pseudo + e-mail + mot de passe, la connexion par e-mail et le lien magique à usage unique (15 minutes). Les anciens comptes pseudo/mot de passe restent compatibles. La migration D1 ajoute les colonnes e-mail et une table de jetons lors de l’accès à l’API.
+
+Pour activer l’envoi des liens magiques, ajouter dans les secrets/variables **de l’environnement Preview uniquement** :
+
+- `RESEND_API_KEY` : clé API Resend.
+- `EMAIL_FROM` : expéditeur autorisé par le compte Resend, par exemple l’adresse de test autorisée tant qu’aucun domaine n’est vérifié.
+
+Ne jamais committer ces valeurs. Les offres gratuites et les restrictions d’expédition des fournisseurs peuvent évoluer; vérifie les limites actuelles du fournisseur. Tant que ces deux valeurs ne sont pas configurées, la connexion e-mail avec mot de passe ne dépend pas du fournisseur, mais le lien magique ne peut pas être envoyé.
+
+Les connexions Google et Apple, ainsi que les clés API des assistants IA, restent non configurées. Ne pas fusionner en production avant tests manuels, revue de sécurité et configuration séparée.
