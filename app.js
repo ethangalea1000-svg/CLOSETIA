@@ -322,6 +322,8 @@ function hasLocalData(snapshot){
     ["styles","models","brands","colors","impressions","patterns"].some(key=>Array.isArray(profile[key])&&profile[key].length) ||
     (Array.isArray(colorimetry.palette)&&colorimetry.palette.length) ||
     (Array.isArray(settings.friends)&&settings.friends.length) ||
+    (Array.isArray(settings.shared)&&settings.shared.length) ||
+    (Array.isArray(settings.wishlist)&&settings.wishlist.length) ||
     (Array.isArray(settings.lookTracker)&&settings.lookTracker.length)
   );
 }
@@ -619,6 +621,12 @@ function openSettings(){
     </div>`;
   document.body.appendChild(modal);
   $("closeModal").onclick=closeModal;
+  const storagePanel=document.createElement("div");
+  storagePanel.className="card";
+  storagePanel.style.cssText="margin:12px 0;padding:14px";
+  storagePanel.innerHTML="<h3>État du stockage</h3><p id='storageDiagnostics' class='muted'>Calcul de la taille des données…</p><p class='muted'>Les photos font partie de la sauvegarde et de la synchronisation actuelles. Si le Cloud signale des données trop volumineuses, exporte un JSON avant toute nouvelle tentative et évite de te déconnecter/reconnecter en boucle.</p>";
+  $("connectCloud").parentElement.parentElement.after(storagePanel);
+  updateStorageDiagnostics();
   $("connectCloud").onclick=connectCloudflare;
   $("disconnectCloud").onclick=disconnectCloudflare;
   $("exportJSON").onclick=exportJSON;
@@ -630,6 +638,26 @@ function openSettings(){
       location.reload();
     }
   };
+}
+
+async function updateStorageDiagnostics(){
+  const el=$("storageDiagnostics");
+  if(!el)return;
+  const json=JSON.stringify(db);
+  const totalBytes=new Blob([json]).size;
+  const photoBytes=db.items.reduce((sum,item)=>sum+(typeof item.image==="string"?new Blob([item.image]).size:0),0);
+  const fmt=bytes=>bytes<1024?bytes+" o":bytes<1024*1024?(bytes/1024).toFixed(1)+" Ko":(bytes/1024/1024).toFixed(2)+" Mo";
+  let browserInfo="Quota du navigateur non disponible.";
+  try{
+    if(navigator.storage&&navigator.storage.estimate){
+      const estimate=await navigator.storage.estimate();
+      if(estimate&&Number.isFinite(estimate.usage)&&Number.isFinite(estimate.quota)){
+        browserInfo="Utilisation estimée du navigateur : "+fmt(estimate.usage)+" / "+fmt(estimate.quota)+".";
+      }
+    }
+  }catch(ignore){}
+  const warning=totalBytes>700*1024?"<strong>Attention :</strong> la sauvegarde dépasse 700 Ko. La limite exacte dépend du service Cloud et du Worker.":"";
+  el.innerHTML="<b>"+db.items.length+" vêtement(s)</b> · Photos : "+fmt(photoBytes)+" · Sauvegarde complète : "+fmt(totalBytes)+"<br>"+browserInfo+(warning?"<br><span style='color:#b45309'>"+warning+"</span>":"");
 }
 
 function demo(){
@@ -837,9 +865,33 @@ function shoppingSuggestions(){
     return "<article class=\"card shopping-model-card\"><img class=\"shopping-model-image\" loading=\"lazy\" src=\""+esc(photoFor(model))+"\" alt=\"Exemple d’inspiration pour "+esc(model)+"\" onerror=\"this.style.display='none'\"><div class=\"shopping-model-body\"><h3>"+esc(model)+"</h3><p class=\"muted\">"+(brands.length?"Marque préférée : "+esc(brands[0]):"Style : "+esc((p.styles||[]).join(", ")||"à personnaliser"))+(budget>0?" · budget indicatif : "+budget+" €":"")+"</p><div class=\"store-links\">"+stores.map(function(store){var q="site:"+store.domain+" "+query;return "<a class=\"store-link\" href=\"https://www.google.com/search?q="+encodeURIComponent(q)+"\" target=\"_blank\" rel=\"noopener noreferrer\">Voir sur "+esc(store.name)+" ↗</a>"}).join("")+"<a class=\"store-link store-link-all\" href=\"https://www.google.com/search?tbm=shop&q="+encodeURIComponent(query)+"\" target=\"_blank\" rel=\"noopener noreferrer\">Comparer les magasins ↗</a></div></div></article>";
   }).join("")+"</div><p class=\"muted\">Les photos sont des exemples d’inspiration, pas une garantie que le produit exact est en vente.</p></div>";
 }
+function recommendationReasons(item,p){
+  const reasons=[];
+  if(item.favorite)reasons.push("Favori");
+  if(Array.isArray(p.colors)&&p.colors.includes(item.color))reasons.push("Couleur choisie");
+  if(item.season==="Toute l'année"||item.season===currentSeason())reasons.push("Saison adaptée");
+  if(item.wears>0&&item.wears<=5)reasons.push("Pièce déjà appréciée");
+  const description=(String(item.name||"")+" "+String(item.notes||"")+" "+String(item.category||"")).toLowerCase();
+  if(Array.isArray(p.styles)&&p.styles.some(style=>description.includes(style.toLowerCase())))reasons.push("Style correspondant");
+  if(Array.isArray(p.patterns)&&p.patterns.some(pattern=>description.includes(pattern.toLowerCase())))reasons.push("Motif préféré");
+  if(!reasons.length)reasons.push("Pièce disponible dans ton dressing");
+  return reasons.slice(0,3);
+}
+function currentSeason(){
+  const month=new Date().getMonth();
+  return month>=2&&month<=4?"Printemps":month>=5&&month<=7?"Été":month>=8&&month<=10?"Automne":"Hiver";
+}
 function starPage(){
-  var p=db.settings.profile||{}, list=db.items.slice().sort(function(a,b){var sa=(b.favorite?5:0)+(p.colors&&p.colors.includes(b.color)?5:0)+b.wears+(p.patterns&&p.patterns.some(function(v){return String(b.notes||"").toLowerCase().includes(v.toLowerCase())})?2:0);var sb=(a.favorite?5:0)+(p.colors&&p.colors.includes(a.color)?5:0)+a.wears+(p.patterns&&p.patterns.some(function(v){return String(a.notes||"").toLowerCase().includes(v.toLowerCase())})?2:0);return sa-sb}).slice(0,8);
-  return "<div class=\"section\"><span class=\"eyebrow\">RECOMMANDATIONS</span><h1>⭐ Outfit Star</h1><div id=\"weatherBox\" class=\"card weatherbox\">Chargement de la météo…</div><p class=\"muted\">Pièces favorisées selon tes goûts, tes couleurs, tes favoris et ton historique.</p><div class=\"grid\">"+(list.length?list.map(itemCard).join(""):"<div class=\"empty\">Ajoute des vêtements pour obtenir des recommandations.</div>")+"</div><div style=\"margin-top:24px\">"+shoppingSuggestions()+"</div></div>";
+  var p=db.settings.profile||{};
+  var list=db.items.slice().sort(function(a,b){
+    function score(item){
+      return (item.favorite?5:0)+(Array.isArray(p.colors)&&p.colors.includes(item.color)?5:0)+Math.min(Number(item.wears)||0,5)+
+        (item.season===currentSeason()||item.season==="Toute l'année"?2:0)+
+        (Array.isArray(p.patterns)&&p.patterns.some(function(v){return String(item.notes||"").toLowerCase().includes(v.toLowerCase())})?2:0);
+    }
+    return score(b)-score(a);
+  }).slice(0,8);
+  return "<div class=\"section\"><span class=\"eyebrow\">RECOMMANDATIONS</span><h1>⭐ Outfit Star</h1><div id=\"weatherBox\" class=\"card weatherbox\">Chargement de la météo…</div><p class=\"muted\">Suggestions explicables selon tes favoris, tes couleurs préférées, la saison et les informations que tu as renseignées. Ce sont des pistes, pas des règles.</p><div class=\"grid\">"+(list.length?list.map(function(item){return "<div class=\"recommendation-card\">"+itemCard(item)+"<p class=\"muted recommendation-reasons\"><b>Pourquoi cette pièce ?</b> "+recommendationReasons(item,p).map(esc).join(" · ")+"</p></div>"}).join(""):"<div class=\"empty\">Ajoute des vêtements pour obtenir des recommandations.</div>")+"</div><div style=\"margin-top:24px\">"+shoppingSuggestions()+"</div></div>";
 }
 function celebrityData(){
   return [
