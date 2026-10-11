@@ -187,14 +187,16 @@ export async function onRequest({ request, env }) {
     }
     if (path === "email-login" && request.method === "POST") {
       const body = await request.json();
+      const usernameNorm = String(body.username || "").trim().toLocaleLowerCase("en-US");
       const emailNorm = String(body.email || "").trim().toLocaleLowerCase("en-US");
-      const row = await env.CLOSETIA_DB.prepare("SELECT id,username,salt,password_hash FROM closetia_accounts WHERE email_norm = ?").bind(emailNorm).first();
-      if (!row) return fail("E-mail ou mot de passe incorrect.",401);
+      if (!validUsername(String(body.username || "").trim()) || !validEmail(emailNorm)) return fail("Vérifie ton pseudo et ton adresse e-mail.");
+      const row = await env.CLOSETIA_DB.prepare("SELECT id,username,salt,password_hash FROM closetia_accounts WHERE email_norm = ? AND username_norm = ?").bind(emailNorm, usernameNorm).first();
+      if (!row) return fail("Pseudo, e-mail ou mot de passe incorrect.",401);
       const candidate = await passwordHash(String(body.password || ""), row.salt);
       const left=encoder.encode(candidate),right=encoder.encode(row.password_hash);
       let diff=left.length^right.length;
       for(let i=0;i<Math.max(left.length,right.length);i++)diff|=(left[i]||0)^(right[i]||0);
-      if(diff!==0)return fail("E-mail ou mot de passe incorrect.",401);
+      if(diff!==0)return fail("Pseudo, e-mail ou mot de passe incorrect.",401);
       return json({ok:true,user:{id:row.id,username:row.username}},200,{"Set-Cookie":await issueCookie(row.id,env.AUTH_SECRET)});
     }
     if (path === "magic-request" && request.method === "POST") {
