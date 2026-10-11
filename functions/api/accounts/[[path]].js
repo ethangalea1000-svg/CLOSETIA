@@ -6,12 +6,12 @@ const encoder = new TextEncoder();
 const rateBuckets = new Map();
 function rateLimit(request, path) {
   const now = Date.now();
-  const policy = path === "register" ? [5, 15 * 60 * 1000] :
-    path === "login" ? [10, 10 * 60 * 1000] :
+  const policy = ["register","email-register"].includes(path) ? [5, 15 * 60 * 1000] :
+    ["login","email-login","magic-request","magic-verify"].includes(path) ? [10, 10 * 60 * 1000] :
     path === "search" ? [40, 60 * 1000] :
     (path === "request" || path === "accept") ? [20, 60 * 1000] : [90, 60 * 1000];
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-  const group = ["register", "login", "search", "request", "accept"].includes(path) ? path : "general";
+  const group = ["register","email-register","login","email-login","magic-request","magic-verify","search","request","accept"].includes(path) ? path : "general";
   const key = ip + ":" + group;
   let bucket = rateBuckets.get(key);
   if (!bucket || now - bucket.startedAt >= policy[1]) {
