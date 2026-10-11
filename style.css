@@ -360,3 +360,19 @@ footer{padding:24px 16px 34px;text-align:center;color:var(--muted);font-size:12p
 .auth-card .account-form button{width:100%;margin-top:18px}
 .auth-note{font-size:12px;line-height:1.6;margin-top:22px}
 @media(max-width:650px){.auth-card .account-forms{grid-template-columns:1fr}.auth-gate{margin-top:12px}.auth-hero h1{letter-spacing:-1.5px}}
+
+
+/* CLOSETIA Preview — external connections hub */
+.connection-group{margin:26px 0}
+.connection-group>h2{font-size:23px;letter-spacing:-.5px;margin-bottom:12px}
+.connection-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:14px}
+.connection-card{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.connection-title{width:100%;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.connection-title h3{margin:0;font-size:18px}
+.connection-state{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:6px 9px;font-size:11px;font-weight:750;line-height:1.3}
+.state-available{background:#ecfdf3;color:#067647;border-color:#abefc6}
+.state-pending{background:#fffaeb;color:#93370d;border-color:#fedf89}
+.connection-card button[disabled]{cursor:not-allowed;opacity:.65}
+.connections-notice{background:#fffaeb;color:#854d0e}
+.connection-setup{margin-top:24px}
+.connection-setup li{margin:9px 0;line-height:1.5}
