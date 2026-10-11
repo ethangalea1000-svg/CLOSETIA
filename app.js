@@ -58,6 +58,7 @@ function load(){
 
 const CLOUD_API = ""; // Same-origin: proxied by Cloudflare Pages Functions to avoid browser CORS failures.
 const CLOUD_TOKEN_KEY = "closetia.cloud.session";
+const CLOUD_PENDING_KEY = "closetia.cloud.pending";
 let cloudSyncTimer = null;
 let cloudSyncRunning = false;
 let cloudSyncAgain = false;
@@ -108,7 +109,10 @@ async function syncCloudNow(){
       const snapshot=JSON.stringify(db);
       await cloudRequest("/api/closetia/preferences/main",{method:"PUT",body:JSON.stringify({data:JSON.parse(snapshot)})});
       if(snapshot!==JSON.stringify(db)) cloudSyncAgain=true;
-      else showCloudStatus("Synchronisé avec Cloudflare D1.",false);
+      else {
+        try{localStorage.removeItem(CLOUD_PENDING_KEY);}catch(ignore){}
+        showCloudStatus("Synchronisé avec Cloudflare D1.",false);
+      }
     }while(cloudSyncAgain && cloudToken() && cloudReady);
   }finally{
     cloudSyncRunning=false;
@@ -157,10 +161,18 @@ async function checkCloudSession(){
     if(remote&&Array.isArray(remote.items)){
       // Ne jamais remplacer un dressing local non vide par un snapshot Cloud vide.
       // On garde les pièces locales et on les renvoie vers D1 pour éviter une perte silencieuse.
-      if(db.items.length>0 && remote.items.length===0){
+      if(hasLocalData(db) && !hasRemoteData(remote)){
         showCloudStatus("Dressing local conservé : le Cloud contient 0 vêtement. Synchronisation de tes données locales…",true);
         cloudReady=true;
         await syncCloudNow();
+        return;
+      }
+      if(localStorage.getItem(CLOUD_PENDING_KEY)==="1"){
+        db=mergeSnapshots(db,remote);
+        localStorage.setItem(KEY,JSON.stringify(db));
+        cloudReady=true;
+        await syncCloudNow();
+        showCloudStatus("Modifications locales fusionnées avec le Cloud.",false);
         return;
       }
       db={
@@ -225,12 +237,29 @@ async function connectCloudflare(){
       if(!/404|introuvable|not found|aucun|absent/i.test(e.message)) throw e;
     }
     if(remote&&Array.isArray(remote.items)){
-      db=remote;
-      db.settings={...fresh().settings,...(db.settings||{}),profile:{...fresh().settings.profile,...((db.settings&&db.settings.profile)||{})},colorimetry:{...fresh().settings.colorimetry,...((db.settings&&db.settings.colorimetry)||{})},friends:Array.isArray(db.settings?.friends)?db.settings.friends:[],shared:Array.isArray(db.settings?.shared)?db.settings.shared:[]};
-      localStorage.setItem(KEY,JSON.stringify(db));
-      render();
-      cloudReady=true;
-      showCloudStatus("Données Cloudflare chargées et synchronisées.",false);
+      if(hasLocalData(db) && hasRemoteData(remote)){
+        const proceed=confirm("Le dressing local contient "+db.items.length+" vêtements et le Cloud en contient "+remote.items.length+".\n\nPour éviter toute perte, CLOSETIA va télécharger une sauvegarde JSON locale puis fusionner les deux dressings. En cas de même identifiant, la version locale est prioritaire. Continuer ?");
+        if(!proceed) return;
+        download("closetia-sauvegarde-avant-fusion.json",JSON.stringify({format:"CLOSETIA",version:2,exportedAt:new Date().toISOString(),...db},null,2),"application/json");
+        db=mergeSnapshots(db,remote);
+        localStorage.setItem(KEY,JSON.stringify(db));
+        try{localStorage.setItem(CLOUD_PENDING_KEY,"1");}catch(ignore){}
+        cloudReady=true;
+        await syncCloudNow();
+        render();
+        showCloudStatus("Dressings fusionnés. Sauvegarde locale téléchargée.",false);
+      }else if(hasLocalData(db) && !hasRemoteData(remote)){
+        cloudReady=true;
+        try{localStorage.setItem(CLOUD_PENDING_KEY,"1");}catch(ignore){}
+        await syncCloudNow();
+        showCloudStatus("Dressing local conservé et envoyé vers le Cloud.",false);
+      }else{
+        db=mergeSnapshots(fresh(),remote);
+        localStorage.setItem(KEY,JSON.stringify(db));
+        render();
+        cloudReady=true;
+        showCloudStatus("Données Cloudflare chargées et synchronisées.",false);
+      }
     }else{
       cloudReady=true;
       await syncCloudNow();
@@ -254,10 +283,78 @@ function disconnectCloudflare(){
 }
 
 function save(shouldRender=true){
-  try{ localStorage.setItem(KEY,JSON.stringify(db)); }
-  catch(e){ alert("Impossible d'enregistrer les données locales. Vérifie l'espace disponible."); console.error(e); return; }
+  try{
+    localStorage.setItem(KEY,JSON.stringify(db));
+  }catch(e){
+    alert("Impossible d'enregistrer les données locales. Les modifications ne sont pas confirmées. Exporte ton dressing si possible, puis libère de l'espace.");
+    console.error("CLOSETIA save error",e);
+    return false;
+  }
+  if(cloudToken() && cloudReady){
+    try{localStorage.setItem(CLOUD_PENDING_KEY,"1");}catch(ignore){}
+  }
   queueCloudSync();
   if(shouldRender) render();
+  return true;
+}
+
+function mergeRecords(primary,secondary){
+  const map=new Map();
+  [...(Array.isArray(primary)?primary:[]),...(Array.isArray(secondary)?secondary:[])].forEach((record,index)=>{
+    if(!record || typeof record!=="object") return;
+    map.set(String(record.id||record.name||("record-"+index)),record);
+  });
+  return [...map.values()];
+}
+function hasLocalData(snapshot){
+  if(!snapshot || typeof snapshot!=="object") return false;
+  const settings=snapshot.settings||{},profile=settings.profile||{},colorimetry=settings.colorimetry||{};
+  return Boolean(
+    (Array.isArray(snapshot.items)&&snapshot.items.length) ||
+    (Array.isArray(snapshot.outfits)&&snapshot.outfits.length) ||
+    (snapshot.calendar&&Object.keys(snapshot.calendar).length) ||
+    (Array.isArray(snapshot.palette)&&snapshot.palette.length) ||
+    profile.name || profile.city ||
+    ["styles","models","brands","colors","impressions","patterns"].some(key=>Array.isArray(profile[key])&&profile[key].length) ||
+    (Array.isArray(colorimetry.palette)&&colorimetry.palette.length) ||
+    (Array.isArray(settings.friends)&&settings.friends.length) ||
+    (Array.isArray(settings.lookTracker)&&settings.lookTracker.length)
+  );
+}
+function hasRemoteData(snapshot){
+  return Boolean(snapshot && (
+    (Array.isArray(snapshot.items)&&snapshot.items.length) ||
+    (Array.isArray(snapshot.outfits)&&snapshot.outfits.length) ||
+    (snapshot.calendar&&Object.keys(snapshot.calendar).length) ||
+    (Array.isArray(snapshot.palette)&&snapshot.palette.length) ||
+    (snapshot.settings&&Object.keys(snapshot.settings).length)
+  ));
+}
+function mergeSnapshots(localSnapshot,remoteSnapshot){
+  const defaults=fresh();
+  const local=localSnapshot&&typeof localSnapshot==="object"?localSnapshot:defaults;
+  const remote=remoteSnapshot&&typeof remoteSnapshot==="object"?remoteSnapshot:defaults;
+  const ls=local.settings||{},rs=remote.settings||{};
+  const lc=ls.colorimetry||{},rc=rs.colorimetry||{};
+  return {
+    ...defaults,...remote,...local,
+    items:mergeRecords(remote.items,local.items).map(normalize),
+    outfits:mergeRecords(remote.outfits,local.outfits),
+    calendar:{...(remote.calendar||{}),...(local.calendar||{})},
+    palette:[...new Set([...(Array.isArray(remote.palette)?remote.palette:[]),...(Array.isArray(local.palette)?local.palette:[])])],
+    settings:{
+      ...defaults.settings,...rs,...ls,
+      profile:{...defaults.settings.profile,...(rs.profile||{}),...(ls.profile||{})},
+      colorimetry:{
+        ...defaults.settings.colorimetry,...rc,...lc,
+        palette:Array.isArray(lc.palette)?lc.palette:(Array.isArray(rc.palette)?rc.palette:[]),
+        selectedColors:[...new Set([...(Array.isArray(rc.selectedColors)?rc.selectedColors:[]),...(Array.isArray(lc.selectedColors)?lc.selectedColors:[])])]
+      },
+      friends:[...new Set([...(Array.isArray(rs.friends)?rs.friends:[]),...(Array.isArray(ls.friends)?ls.friends:[])])],
+      shared:mergeRecords(rs.shared,ls.shared),
+      lookTracker:mergeRecords(rs.lookTracker,ls.lookTracker)
+    }
+  };
 }
 
 function esc(value){
@@ -310,7 +407,10 @@ function addFiles(files){
       try{
         const data=await compressImageData(reader.result,640,0.55);
         db.items.push(normalize({name:(baseName && !/^\d[\d _-]*$/.test(baseName))?baseName:"Vêtement",category:g.category,color:g.color,image:data}));
-        save();
+        if(!save()){
+          db.items.pop();
+          alert("La photo n'a pas été conservée : l'espace de stockage local est insuffisant.");
+        }
       }catch(e){alert("Photo trop lourde pour être enregistrée. Essaie une image plus petite.");console.error(e)}
     };
     reader.onerror=()=>alert("Impossible de lire "+file.name);
@@ -343,6 +443,7 @@ function exportCSV(){
 
 function importJSON(file){
   if(!file) return;
+  const previousDb=db;
   const reader=new FileReader();
   reader.onload=async()=>{
     try{
@@ -362,8 +463,13 @@ function importJSON(file){
         palette:Array.isArray(x.palette)?x.palette:[],
         settings:{...defaults.settings,...incoming,profile:{...defaults.settings.profile,...(incoming.profile||{})},colorimetry:{...defaults.settings.colorimetry,...(incoming.colorimetry||{})},friends:Array.isArray(incoming.friends)?incoming.friends:[],shared:Array.isArray(incoming.shared)?incoming.shared:[]}
       };
-      save();
-      alert("Dressing importé avec succès.");
+      if(!save()){
+        db=previousDb;
+        render();
+        alert("Import annulé : le navigateur n'a pas pu enregistrer les données. Ton dressing précédent a été conservé.");
+        return;
+      }
+      alert("Dressing importé localement. La synchronisation Cloud, si activée, peut encore être en attente.");
     }catch(e){
       console.error(e);
       alert("Fichier CLOSETIA invalide.");
@@ -444,7 +550,7 @@ function generateOutfit(){
   const pool=db.items.filter(x=>occasion==="Tous les jours"||x.occasion===occasion||x.occasion==="Tous les jours");
   if(pool.length<2){alert("Ajoute au moins deux vêtements compatibles.");return}
   function score(item){
-    let n=Math.random()*2;
+    let n=0;
     if(item.favorite)n+=2;
     if(profile.colors&&profile.colors.includes(item.color))n+=3;
     if(item.season===season||item.season==="Toute l'année")n+=2;
@@ -457,7 +563,7 @@ function generateOutfit(){
     if(item.wears>0)n+=Math.min(item.wears,5)*.15;
     return n;
   }
-  function choose(list){return list.slice().sort((a,b)=>score(b)-score(a))[0]}
+  function choose(list){return list.map(item=>({item,score:score(item)+Math.random()*0.2})).sort((a,b)=>b.score-a.score)[0].item}
   const chosen=[];
   ["Haut","Bas","Chaussures"].forEach(category=>{const candidates=pool.filter(x=>x.category===category);if(candidates.length)chosen.push(choose(candidates))});
   if(chosen.length<2){
