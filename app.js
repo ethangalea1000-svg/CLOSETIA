@@ -195,7 +195,7 @@ async function checkCloudSession(){
     cloudReady=true;
   }catch(e){
     cloudReady=false;
-    if(/401|403|connexion requise|jeton|token|authentification/i.test(e.message)){
+    if(/401|403|connexion requise|connecte-toi à ton compte|session|jeton|token|authentification/i.test(e.message)){
       cloudAccountConnected=false;
       showCloudStatus("Session CLOSETIA expirée. Reconnecte-toi à ton compte.",true);
     }else{
