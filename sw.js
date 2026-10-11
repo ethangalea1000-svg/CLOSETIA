@@ -1,5 +1,5 @@
-const CACHE="closetia-v30";
-const ASSETS=["./","./index.html","./style.css","./app.js?v=31","./manifest.json"];
+const CACHE="closetia-v31";
+const ASSETS=["./","./index.html","./style.css","./app.js?v=32","./manifest.json"];
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));
 });
