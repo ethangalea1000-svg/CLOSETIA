@@ -1251,7 +1251,19 @@ async function initializeAccountGate(){
 async function accountApi(path, options={}){
   const response=await fetch("/api/accounts/"+path,{credentials:"same-origin",headers:{"Content-Type":"application/json",...(options.headers||{})},...options});
   const data=await response.json().catch(()=>({ok:false,error:"Réponse serveur illisible."}));
-  if(!response.ok||data.ok===false)throw new Error(data.error||"La demande a échoué.");
+  if(!response.ok||data.ok===false){
+    let message=data.error||"La demande a échoué.";
+    if(response.status===429){
+      const retryAfter=Number(response.headers.get("Retry-After")||0);
+      if(retryAfter>0){
+        const minutes=Math.ceil(retryAfter/60);
+        message="Trop de tentatives. Réessaie dans "+(minutes<=1?"environ 1 minute":"environ "+minutes+" minutes")+".";
+      }else{
+        message="Trop de tentatives. Attends quelques minutes avant de réessayer.";
+      }
+    }
+    throw new Error(message);
+  }
   return data;
 }
 function friendsPage(){
