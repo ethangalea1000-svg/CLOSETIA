@@ -14,7 +14,7 @@ const importFile = $("importFile");
 
 let db = load();
 
-function fresh(){ return {items:[],outfits:[],calendar:{},palette:[],settings:{profile:{name:"",city:"",styles:[],models:[],brands:[],budget:50,weather:true,colors:[]},colorimetry:{palette:[],status:"Non définie"},friends:[],shared:[],lookTracker:[]}}; }
+function fresh(){ return {items:[],outfits:[],calendar:{},palette:[],settings:{profile:{name:"",city:"",styles:[],models:[],brands:[],budget:50,weather:true,colors:[]},colorimetry:{palette:[],status:"Non définie"},friends:[],shared:[],lookTracker:[],wishlist:[]}}; }
 
 function makeId(){
   if(window.crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -48,7 +48,7 @@ function load(){
       outfits:Array.isArray(x.outfits)?x.outfits:[],
       calendar:x.calendar && typeof x.calendar==="object"?x.calendar:{},
       palette:Array.isArray(x.palette)?x.palette:[],
-      settings:{...fresh().settings,...(x.settings||{}),profile:{...fresh().settings.profile,...((x.settings&&x.settings.profile)||{})},colorimetry:{...fresh().settings.colorimetry,...((x.settings&&x.settings.colorimetry)||{}),palette:Array.isArray(x.settings&&x.settings.colorimetry&&x.settings.colorimetry.palette)?x.settings.colorimetry.palette:[],selectedColors:Array.isArray(x.settings&&x.settings.colorimetry&&x.settings.colorimetry.selectedColors)?x.settings.colorimetry.selectedColors:[]},friends:Array.isArray(x.settings&&x.settings.friends)?x.settings.friends:[],shared:Array.isArray(x.settings&&x.settings.shared)?x.settings.shared:[]}
+      settings:{...fresh().settings,...(x.settings||{}),profile:{...fresh().settings.profile,...((x.settings&&x.settings.profile)||{})},colorimetry:{...fresh().settings.colorimetry,...((x.settings&&x.settings.colorimetry)||{}),palette:Array.isArray(x.settings&&x.settings.colorimetry&&x.settings.colorimetry.palette)?x.settings.colorimetry.palette:[],selectedColors:Array.isArray(x.settings&&x.settings.colorimetry&&x.settings.colorimetry.selectedColors)?x.settings.colorimetry.selectedColors:[]},friends:Array.isArray(x.settings&&x.settings.friends)?x.settings.friends:[],shared:Array.isArray(x.settings&&x.settings.shared)?x.settings.shared:[],wishlist:Array.isArray(x.settings&&x.settings.wishlist)?x.settings.wishlist:[]}
     };
   }catch(e){
     console.error("CLOSETIA load error",e);
@@ -346,7 +346,8 @@ function mergeSnapshots(localSnapshot,remoteSnapshot){
       },
       friends:[...new Set([...(Array.isArray(rs.friends)?rs.friends:[]),...(Array.isArray(ls.friends)?ls.friends:[])])],
       shared:mergeRecords(rs.shared,ls.shared),
-      lookTracker:mergeRecords(rs.lookTracker,ls.lookTracker)
+      lookTracker:mergeRecords(rs.lookTracker,ls.lookTracker),
+      wishlist:mergeRecords(rs.wishlist,ls.wishlist)
     }
   };
 }
@@ -455,7 +456,7 @@ function importJSON(file){
         outfits:Array.isArray(x.outfits)?x.outfits:[],
         calendar:x.calendar && typeof x.calendar==="object"?x.calendar:{},
         palette:Array.isArray(x.palette)?x.palette:[],
-        settings:{...defaults.settings,...incoming,profile:{...defaults.settings.profile,...(incoming.profile||{})},colorimetry:{...defaults.settings.colorimetry,...(incoming.colorimetry||{})},friends:Array.isArray(incoming.friends)?incoming.friends:[],shared:Array.isArray(incoming.shared)?incoming.shared:[]}
+        settings:{...defaults.settings,...incoming,profile:{...defaults.settings.profile,...(incoming.profile||{})},colorimetry:{...defaults.settings.colorimetry,...(incoming.colorimetry||{})},friends:Array.isArray(incoming.friends)?incoming.friends:[],shared:Array.isArray(incoming.shared)?incoming.shared:[],wishlist:Array.isArray(incoming.wishlist)?incoming.wishlist:[]}
       };
       if(!save()){
         db=previousDb;
@@ -985,6 +986,46 @@ function loadCelebrityLooks(){
     }
   });
 }
+function safeExternalUrl(value){
+  try{
+    const url=new URL(String(value||""));
+    return url.protocol==="https:"||url.protocol==="http:"?url.href:"";
+  }catch(ignore){return "";}
+}
+function wishlistPage(){
+  const wishlist=Array.isArray(db.settings.wishlist)?db.settings.wishlist:[];
+  const rows=wishlist.slice().reverse().map(item=>{
+    const url=safeExternalUrl(item.url);
+    const price=Number.isFinite(Number(item.price))&&String(item.price).trim()!==""?Number(item.price).toLocaleString("fr-FR",{style:"currency",currency:"EUR"}):"Prix non renseigné";
+    return '<article class="card wishlist-item"><div class="sectionhead"><div><h3>'+esc(item.name||"Article sans nom")+'</h3><span class="tag">'+esc(price)+'</span></div><button class="danger" data-action="removeWishlist" data-id="'+esc(item.id)+'">Retirer</button></div>'+(item.notes?'<p class="muted">'+esc(item.notes)+'</p>':"")+(url?'<a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">Voir l’article ↗</a>': '<span class="muted">Aucun lien enregistré</span>')+'</article>';
+  }).join("");
+  return '<div class="section"><span class="eyebrow">MES ENVIES</span><h1>Liste d’envies</h1><p class="muted">Garde une trace des pièces qui t’intéressent, de leur prix et du lien de la boutique. La liste est privée et enregistrée avec tes données CLOSETIA.</p><form class="card" id="wishlistForm"><h2>Ajouter une envie</h2><label>Nom de l’article<input id="wishName" maxlength="120" required placeholder="Ex. Pull bleu marine"></label><div class="filters"><label>Prix en euros<input id="wishPrice" type="number" min="0" max="100000" step="0.01" placeholder="Facultatif"></label><label>Lien de la boutique<input id="wishUrl" type="url" maxlength="1000" placeholder="https://…"></label></div><label>Notes<textarea id="wishNotes" maxlength="500" placeholder="Taille, couleur, pourquoi il te plaît…"></textarea></label><button class="primary" type="submit">Ajouter à ma liste</button></form><div class="grid" style="margin-top:16px">'+(rows||'<div class="empty">Ta liste est vide. Ajoute une pièce que tu souhaites garder en mémoire.</div>')+'</div></div>';
+}
+function addWishlistItem(){
+  const name=$("wishName")?$("wishName").value.trim():"";
+  const priceRaw=$("wishPrice")?$("wishPrice").value.trim():"";
+  const urlRaw=$("wishUrl")?$("wishUrl").value.trim():"";
+  const notes=$("wishNotes")?$("wishNotes").value.trim():"";
+  if(!name){alert("Indique le nom de l’article.");return;}
+  if(priceRaw!==""&&(!Number.isFinite(Number(priceRaw))||Number(priceRaw)<0)){alert("Le prix doit être un nombre positif.");return;}
+  let url="";
+  if(urlRaw){
+    url=safeExternalUrl(urlRaw);
+    if(!url){alert("Le lien doit commencer par http:// ou https://.");return;}
+  }
+  if(!Array.isArray(db.settings.wishlist))db.settings.wishlist=[];
+  db.settings.wishlist.push({id:makeId(),name,price:priceRaw===""?"":Number(priceRaw),url,notes,createdAt:new Date().toISOString()});
+  if(!save()){db.settings.wishlist.pop();return;}
+}
+function removeWishlistItem(id){
+  const list=Array.isArray(db.settings.wishlist)?db.settings.wishlist:[];
+  const index=list.findIndex(item=>String(item.id)===String(id));
+  if(index<0)return;
+  if(!confirm("Retirer cet article de la liste d’envies ?"))return;
+  const removed=list.splice(index,1)[0];
+  if(!save()){list.splice(index,0,removed);}
+}
+
 function friendsPage(){
   var fs=db.settings.friends||[]; return "<div class=\"section\"><span class=\"eyebrow\">SOCIAL</span><h1>Amis</h1><div class=\"card\"><p class=\"muted\">Les amis sont préparés localement. Le partage en ligne sera branché sur D1/R2 ensuite.</p><div class=\"toolbar\"><input id=\"friendName\" placeholder=\"Nom de l’ami\"><button class=\"primary\" data-action=\"addFriend\">Ajouter</button></div></div><div class=\"grid\">"+(fs.length?fs.map(function(x,i){return "<div class=\"card\"><h3>👤 "+esc(x)+"</h3><button class=\"danger\" data-action=\"removeFriend\" data-id=\""+i+"\">Supprimer</button></div>"}).join(""):"<div class=\"empty\">Aucun ami.</div>")+"</div></div>";
 }
@@ -1066,6 +1107,7 @@ function home(){
     <div class="dashboard">
       <a class="card feature" href="#/dressing"><b>👕 Dressing</b><span>${db.items.length} vêtement${db.items.length>1?"s":""} · recherche · filtres · favoris</span></a>
       <a class="card feature" href="#/tenues"><b>✨ Tenues</b><span>${db.outfits.length} tenue${db.outfits.length>1?"s":""} · générateur</span></a>
+      <a class="card feature" href="#/wishlist"><b>♡ Liste d’envies</b><span>${(db.settings.wishlist||[]).length} article${(db.settings.wishlist||[]).length>1?"s":""} à garder en mémoire</span></a>
       <a class="card feature" href="#/palette"><b>🎨 Couleurs</b><span>Répartition et préférences</span></a>
       <a class="card feature" href="#/calendrier"><b>📅 Calendrier</b><span>Planifier les tenues</span></a><a class="card feature" href="#/profil"><b>🧭 Mon style</b><span>Questionnaire · marques · budget</span></a><a class="card feature" href="#/colorimetrie"><b>🎨 Colorimétrie</b><span>Photo + préférences couleurs</span></a><a class="card feature" href="#/star"><b>⭐ Outfit Star</b><span>Recommandations personnalisées</span></a><a class="card feature" href="#/amis"><b>👥 Amis</b><span>Préparer le partage de tenues</span></a>
     </div>`;
@@ -1237,7 +1279,7 @@ function render(){
   const selectionEnd=active&&typeof active.selectionEnd==="number"?active.selectionEnd:null;
   document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("active",a.getAttribute("href")==="#/"+page));
   try{
-    app.innerHTML=page==="dressing"?dressing():page==="tenues"?outfits():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="stars"?celebrityLooksPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():page==="memes"?sameClothesPage():page==="admin"?adminUnavailablePage():home();
+    app.innerHTML=page==="dressing"?dressing():page==="tenues"?outfits():page==="wishlist"?wishlistPage():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="stars"?celebrityLooksPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():page==="memes"?sameClothesPage():page==="admin"?adminUnavailablePage():home();
     bindPage();
     if(page==="stars") setTimeout(loadCelebrityLooks,0);
     if(activeId){
