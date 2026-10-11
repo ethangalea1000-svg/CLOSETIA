@@ -1109,7 +1109,8 @@ async function loadAccountDirectory(){
   if(!status||!forms||!directory)return;
   try{
     const me=await accountApi("me");
-    status.innerHTML='<strong>Connecté en tant que '+esc(me.user.username)+'</strong> <button class="ghost" type="button" data-action="accountLogout">Déconnexion</button>';
+    status.innerHTML='<strong>Connecté en tant que '+esc(me.user.username)+'</strong> <button class="ghost" type="button" id="accountLogoutButton">Déconnexion</button>';
+    const logoutButton=$("accountLogoutButton");if(logoutButton)logoutButton.addEventListener("click",logoutAccount);
     forms.hidden=true;directory.hidden=false;
     const [friends,requests]=await Promise.all([accountApi("friends"),accountApi("requests")]);
     directory.innerHTML='<div class="account-directory"><div class="sectionhead"><div><h2>Annuaire des membres</h2><p class="muted">Recherche par pseudo réel parmi les comptes enregistrés.</p></div></div><label for="accountSearch">Rechercher un pseudo</label><div class="friends-input-row"><input id="accountSearch" maxlength="24" autocomplete="off" placeholder="Tape au moins 2 caractères"><button class="ghost" type="button" data-action="accountSearch">Rechercher</button></div><div id="accountSearchResults" class="account-results"><p class="muted">Saisis un pseudo pour rechercher un membre.</p></div>'+
@@ -1117,6 +1118,9 @@ async function loadAccountDirectory(){
       '<h2>Mes amis confirmés <span class="tag">'+friends.friends.length+'</span></h2><div class="account-results">'+(friends.friends.length?friends.friends.map(x=>'<article class="account-result"><strong>'+esc(x.username)+'</strong><span class="tag">Ami confirmé</span></article>').join(""):'<p class="muted">Tu n’as pas encore d’ami confirmé.</p>')+'</div></div>';
     const search=$("accountSearch");
     if(search)search.addEventListener("input",()=>searchAccountUsers(search.value));
+    const searchButton=directory.querySelector('[data-action="accountSearch"]');
+    if(searchButton)searchButton.addEventListener("click",()=>searchAccountUsers(search?search.value:""));
+    directory.querySelectorAll('[data-action="accountAccept"]').forEach(btn=>btn.addEventListener("click",()=>acceptAccountRequest(btn.dataset.id)));
   }catch(error){
     if(error.message&&error.message.includes("Connecte-toi")){
       status.textContent="Tu n’es pas connecté.";
@@ -1478,6 +1482,9 @@ function bindPage(){
   });
   if($("wishlistForm")) $("wishlistForm").addEventListener("submit",event=>{event.preventDefault();addWishlistItem();});
   if($("friendForm")) $("friendForm").addEventListener("submit",event=>{event.preventDefault();addFriend();});
+  if($("accountRegisterForm")) $("accountRegisterForm").addEventListener("submit",event=>submitAccountForm(event,"register"));
+  if($("accountLoginForm")) $("accountLoginForm").addEventListener("submit",event=>submitAccountForm(event,"login"));
+  if(location.hash==="#/amis") setTimeout(loadAccountDirectory,0);
   if($("friendSearch")) $("friendSearch").addEventListener("input",render);
   if($("saveProfile")) $("saveProfile").onclick=saveProfileData;
   if($("profileCountry")) loadWeatherCountries();
