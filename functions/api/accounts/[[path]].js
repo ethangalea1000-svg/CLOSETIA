@@ -90,12 +90,42 @@ async function init(db) {
     db.prepare(`CREATE TABLE IF NOT EXISTS closetia_friendships (
       user_id TEXT NOT NULL, friend_id TEXT NOT NULL, created_at TEXT NOT NULL,
       PRIMARY KEY(user_id, friend_id)
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS closetia_magic_links (
+      token_hash TEXT PRIMARY KEY, email_norm TEXT NOT NULL, expires_at INTEGER NOT NULL,
+      created_at TEXT NOT NULL
     )`)
   ]);
+  const columns = await db.prepare("PRAGMA table_info(closetia_accounts)").all();
+  const names = new Set((columns.results || []).map(row => row.name));
+  if (!names.has("email")) await db.prepare("ALTER TABLE closetia_accounts ADD COLUMN email TEXT").run();
+  if (!names.has("email_norm")) await db.prepare("ALTER TABLE closetia_accounts ADD COLUMN email_norm TEXT").run();
+  await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS closetia_accounts_email_norm_uq ON closetia_accounts(email_norm) WHERE email_norm IS NOT NULL").run();
 }
 async function passwordHash(password, salt) {
   const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
   return b64u(new Uint8Array(await crypto.subtle.deriveBits({ name:"PBKDF2", salt: unb64u(salt), iterations: 180000, hash:"SHA-256" }, key, 256)));
+}
+function validEmail(value) {
+  return typeof value === "string" && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+async function sha256(value) {
+  return b64u(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value))));
+}
+async function sendMagicLink(env, email, link) {
+  if (!env.RESEND_API_KEY || !env.EMAIL_FROM) return false;
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + env.RESEND_API_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: env.EMAIL_FROM,
+      to: [email],
+      subject: "Ton lien de connexion CLOSETIA",
+      text: "Pour te connecter à CLOSETIA, ouvre ce lien valable 15 minutes :\n\n" + link + "\n\nSi tu n’as pas demandé ce lien, ignore cet e-mail.",
+      html: "<p>Pour te connecter à CLOSETIA, clique sur le lien ci-dessous. Il expire dans 15 minutes.</p><p><a href=\"" + link + "\">Se connecter à CLOSETIA</a></p><p>Si tu n’as pas demandé ce lien, ignore cet e-mail.</p>"
+    })
+  });
+  return response.ok;
 }
 function cookieClear() { return `${COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`; }
 function validUsername(value) {
@@ -137,6 +167,63 @@ export async function onRequest({ request, env }) {
           .bind(id, username, username.toLocaleLowerCase("en-US"), salt, hash, new Date().toISOString()).run();
       } catch (_) { return fail("Ce pseudo est déjà utilisé. Choisis-en un autre.", 409); }
       return json({ ok:true, user:{id,username} }, 201, { "Set-Cookie": await issueCookie(id, env.AUTH_SECRET) });
+    }
+    if (path === "email-register" && request.method === "POST") {
+      const body = await request.json();
+      const username = String(body.username || "").trim();
+      const email = String(body.email || "").trim();
+      const emailNorm = email.toLocaleLowerCase("en-US");
+      const password = String(body.password || "");
+      if (!validUsername(username)) return fail("Le pseudo doit contenir 3 à 24 caractères : lettres, chiffres, point, tiret ou soulignement.");
+      if (!validEmail(email)) return fail("Saisis une adresse e-mail valide.");
+      if (password.length < 10 || password.length > 128) return fail("Le mot de passe doit contenir entre 10 et 128 caractères.");
+      const id = crypto.randomUUID(), salt = b64u(crypto.getRandomValues(new Uint8Array(16)));
+      const hash = await passwordHash(password, salt);
+      try {
+        await env.CLOSETIA_DB.prepare("INSERT INTO closetia_accounts (id,username,username_norm,salt,password_hash,created_at,email,email_norm) VALUES (?,?,?,?,?,?,?,?)")
+          .bind(id, username, username.toLocaleLowerCase("en-US"), salt, hash, new Date().toISOString(), email, emailNorm).run();
+      } catch (_) { return fail("Ce pseudo ou cette adresse e-mail est déjà utilisé.", 409); }
+      return json({ok:true,user:{id,username}},201,{"Set-Cookie":await issueCookie(id,env.AUTH_SECRET)});
+    }
+    if (path === "email-login" && request.method === "POST") {
+      const body = await request.json();
+      const emailNorm = String(body.email || "").trim().toLocaleLowerCase("en-US");
+      const row = await env.CLOSETIA_DB.prepare("SELECT id,username,salt,password_hash FROM closetia_accounts WHERE email_norm = ?").bind(emailNorm).first();
+      if (!row) return fail("E-mail ou mot de passe incorrect.",401);
+      const candidate = await passwordHash(String(body.password || ""), row.salt);
+      const left=encoder.encode(candidate),right=encoder.encode(row.password_hash);
+      let diff=left.length^right.length;
+      for(let i=0;i<Math.max(left.length,right.length);i++)diff|=(left[i]||0)^(right[i]||0);
+      if(diff!==0)return fail("E-mail ou mot de passe incorrect.",401);
+      return json({ok:true,user:{id:row.id,username:row.username}},200,{"Set-Cookie":await issueCookie(row.id,env.AUTH_SECRET)});
+    }
+    if (path === "magic-request" && request.method === "POST") {
+      const body = await request.json(), email = String(body.email || "").trim(), emailNorm = email.toLocaleLowerCase("en-US");
+      if (!validEmail(email)) return fail("Saisis une adresse e-mail valide.");
+      if (!env.RESEND_API_KEY || !env.EMAIL_FROM) return fail("L’envoi d’e-mails n’est pas configuré. Il faut ajouter RESEND_API_KEY et EMAIL_FROM dans les secrets Preview.",503);
+      const row = await env.CLOSETIA_DB.prepare("SELECT id FROM closetia_accounts WHERE email_norm = ?").bind(emailNorm).first();
+      // Always return the same public response so the endpoint does not reveal whether an account exists.
+      if (row) {
+        const rawToken = b64u(crypto.getRandomValues(new Uint8Array(32)));
+        const expires = Math.floor(Date.now()/1000)+900;
+        await env.CLOSETIA_DB.prepare("DELETE FROM closetia_magic_links WHERE email_norm = ? OR expires_at < ?").bind(emailNorm,Math.floor(Date.now()/1000)).run();
+        await env.CLOSETIA_DB.prepare("INSERT INTO closetia_magic_links (token_hash,email_norm,expires_at,created_at) VALUES (?,?,?,?)")
+          .bind(await sha256(rawToken),emailNorm,expires,new Date().toISOString()).run();
+        const link = new URL("/?magic_token="+encodeURIComponent(rawToken),url.origin).toString();
+        if (!await sendMagicLink(env,email,link)) return fail("L’e-mail n’a pas pu être envoyé. Vérifie le fournisseur d’envoi et son domaine.",502);
+      }
+      return json({ok:true,message:"Si cette adresse correspond à un compte CLOSETIA, un lien de connexion vient d’être envoyé."});
+    }
+    if (path === "magic-verify" && request.method === "POST") {
+      const body = await request.json(), token = String(body.token || "");
+      if (token.length < 20 || token.length > 200) return fail("Lien de connexion invalide ou expiré.",400);
+      const tokenHash = await sha256(token);
+      const row = await env.CLOSETIA_DB.prepare("SELECT email_norm,expires_at FROM closetia_magic_links WHERE token_hash = ?").bind(tokenHash).first();
+      await env.CLOSETIA_DB.prepare("DELETE FROM closetia_magic_links WHERE token_hash = ?").bind(tokenHash).run();
+      if (!row || row.expires_at < Math.floor(Date.now()/1000)) return fail("Lien de connexion invalide ou expiré. Demande-en un nouveau.",401);
+      const account = await env.CLOSETIA_DB.prepare("SELECT id,username FROM closetia_accounts WHERE email_norm = ?").bind(row.email_norm).first();
+      if (!account) return fail("Lien de connexion invalide ou expiré.",401);
+      return json({ok:true,user:account},200,{"Set-Cookie":await issueCookie(account.id,env.AUTH_SECRET)});
     }
     if (path === "login" && request.method === "POST") {
       const body = await request.json(), username = String(body.username || "").trim();
