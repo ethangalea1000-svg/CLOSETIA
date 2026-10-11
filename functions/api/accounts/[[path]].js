@@ -114,7 +114,7 @@ export async function onRequest({ request, env }) {
       catch (_) { return fail("Origine de requête invalide.", 403); }
     }
     const contentType = request.headers.get("Content-Type") || "";
-    if (contentType && !contentType.toLowerCase().startsWith("application/json")) return fail("Format de requête refusé.", 415);
+    if (!contentType.toLowerCase().startsWith("application/json")) return fail("Format de requête refusé.", 415);
     const length = Number(request.headers.get("Content-Length") || 0);
     if (length > 8192) return fail("Requête trop volumineuse.", 413);
   }
