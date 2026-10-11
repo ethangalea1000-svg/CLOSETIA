@@ -1095,7 +1095,7 @@ function authGatePage(){
       '<form id="accountRegisterForm" class="account-form"><h2>Créer un compte</h2><label for="accountRegisterName">Pseudo unique</label><input id="accountRegisterName" maxlength="24" minlength="3" pattern="[A-Za-z0-9_.-]{3,24}" autocomplete="username" placeholder="ex. alex_style" required><small>3 à 24 caractères : lettres, chiffres, point, tiret ou soulignement.</small><label for="accountRegisterPassword">Mot de passe</label><input id="accountRegisterPassword" type="password" minlength="10" maxlength="128" autocomplete="new-password" required placeholder="10 caractères minimum"><button class="ghost" type="submit">Créer mon compte</button></form>'+
     '</div><div class="account-forms email-auth-forms">'+
       '<form id="emailRegisterForm" class="account-form"><h2>Créer un compte avec e-mail</h2><label for="emailRegisterName">Pseudo</label><input id="emailRegisterName" maxlength="24" minlength="3" pattern="[A-Za-z0-9_.-]{3,24}" required autocomplete="username"><label for="emailRegisterAddress">Adresse e-mail</label><input id="emailRegisterAddress" type="email" maxlength="254" autocomplete="email" required><label for="emailRegisterPassword">Mot de passe</label><input id="emailRegisterPassword" type="password" minlength="10" maxlength="128" autocomplete="new-password" required><button class="primary" type="submit">Créer mon compte e-mail</button></form>'+
-      '<form id="emailLoginForm" class="account-form"><h2>Connexion par e-mail</h2><label for="emailLoginAddress">Adresse e-mail</label><input id="emailLoginAddress" type="email" maxlength="254" autocomplete="email" required><label for="emailLoginPassword">Mot de passe</label><input id="emailLoginPassword" type="password" maxlength="128" autocomplete="current-password" required><button class="ghost" type="submit">Se connecter par e-mail</button></form>'+
+      '<form id="emailLoginForm" class="account-form"><h2>Connexion par e-mail</h2><label for="emailLoginName">Pseudo</label><input id="emailLoginName" maxlength="24" minlength="3" pattern="[A-Za-z0-9_.-]{3,24}" autocomplete="username" required placeholder="Ton pseudo CLOSETIA"><label for="emailLoginAddress">Adresse e-mail</label><input id="emailLoginAddress" type="email" maxlength="254" autocomplete="email" required><label for="emailLoginPassword">Mot de passe</label><input id="emailLoginPassword" type="password" maxlength="128" autocomplete="current-password" required><button class="ghost" type="submit">Se connecter</button></form>'+
       '<form id="magicLinkForm" class="account-form"><h2>Lien magique</h2><label for="magicLinkAddress">Adresse e-mail</label><input id="magicLinkAddress" type="email" maxlength="254" autocomplete="email" required><button class="ghost" type="submit">Recevoir un lien de connexion</button><small>Requiert un fournisseur d’e-mail configuré côté serveur.</small></form>'+
       '</div><p id="accountMessage" class="account-message" role="status" aria-live="polite"></p><p class="muted auth-note">La connexion protège l’accès à l’interface. Pour protéger aussi les données enregistrées localement sur un appareil partagé, verrouille ta session Windows et ne partage pas cet appareil.</p></section></div>';
 }
@@ -1208,9 +1208,9 @@ async function submitEmailRegister(event){
 }
 async function submitEmailLogin(event){
   event.preventDefault();
-  const email=$("emailLoginAddress").value.trim(),password=$("emailLoginPassword").value;
+  const username=$("emailLoginName").value.trim(),email=$("emailLoginAddress").value.trim(),password=$("emailLoginPassword").value;
   try{
-    const result=await accountApi("email-login",{method:"POST",body:JSON.stringify({email,password})});
+    const result=await accountApi("email-login",{method:"POST",body:JSON.stringify({username,email,password})});
     accountSessionUser=result.user||null;accountGateChecked=true;accountGateError="";
     accountMessage("Connexion par e-mail réussie.",false);event.target.reset();
     document.body.classList.toggle("auth-required",!accountSessionUser);render();
