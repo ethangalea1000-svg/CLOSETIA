@@ -315,6 +315,10 @@ function hasLocalData(snapshot){
     (snapshot.calendar&&Object.keys(snapshot.calendar).length) ||
     (Array.isArray(snapshot.palette)&&snapshot.palette.length) ||
     profile.name || profile.city ||
+    (profile.budget!==undefined && Number(profile.budget)!==50) ||
+    profile.weather===false ||
+    (profile.countryCode && profile.countryCode!=="FR") ||
+    (profile.countryName && profile.countryName!=="France") ||
     ["styles","models","brands","colors","impressions","patterns"].some(key=>Array.isArray(profile[key])&&profile[key].length) ||
     (Array.isArray(colorimetry.palette)&&colorimetry.palette.length) ||
     (Array.isArray(settings.friends)&&settings.friends.length) ||
