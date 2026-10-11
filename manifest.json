@@ -1,12 +1,16 @@
 {
+  "id": "./",
   "name": "CLOSETIA — Dressing intelligent",
   "short_name": "CLOSETIA",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#f6f7fb",
   "theme_color": "#111827",
-  "description": "Dressing intelligent local-first, exportable et sans analyse corporelle",
+  "description": "CLOSETIA aide à organiser son dressing, composer des tenues et explorer les couleurs. Données exportables, sans analyse corporelle.",
+  "categories": ["lifestyle"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "icon.svg",
