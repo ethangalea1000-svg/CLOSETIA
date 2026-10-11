@@ -286,5 +286,10 @@ export async function onRequest({ request, env }) {
       return json({ok:true,friends:rows.results||[]});
     }
     return fail("Route inconnue.",404);
-  } catch (_) { return fail("Erreur serveur temporaire. Réessaie plus tard.",500); }
+  } catch (error) {
+    if (path === "email-register") {
+      console.error("[CLOSETIA auth] email-register failed", error instanceof Error ? error.name : "UnknownError", error instanceof Error ? error.message : String(error));
+    }
+    return fail("Erreur serveur temporaire. Réessaie plus tard.",500);
+  }
 }
