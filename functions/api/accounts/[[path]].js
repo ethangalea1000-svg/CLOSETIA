@@ -98,7 +98,12 @@ export async function onRequest({ request, env }) {
       const body = await request.json(), username = String(body.username || "").trim();
       const row = await env.CLOSETIA_DB.prepare("SELECT id,username,salt,password_hash FROM closetia_accounts WHERE username_norm = ?")
         .bind(username.toLocaleLowerCase("en-US")).first();
-      if (!row || !(await passwordHash(String(body.password || ""), row.salt)).split("").every((c,i)=>c===row.password_hash[i]) || (await passwordHash(String(body.password || ""), row.salt)).length !== row.password_hash.length) return fail("Pseudo ou mot de passe incorrect.", 401);
+      if (!row) return fail("Pseudo ou mot de passe incorrect.", 401);
+      const candidate = await passwordHash(String(body.password || ""), row.salt);
+      const left = encoder.encode(candidate), right = encoder.encode(row.password_hash);
+      let diff = left.length ^ right.length;
+      for (let i=0; i<Math.max(left.length,right.length); i++) diff |= (left[i]||0) ^ (right[i]||0);
+      if (diff !== 0) return fail("Pseudo ou mot de passe incorrect.", 401);
       return json({ok:true,user:{id:row.id,username:row.username}},200,{"Set-Cookie":await issueCookie(row.id,env.AUTH_SECRET)});
     }
     if (path === "logout" && request.method === "POST") return json({ok:true},200,{"Set-Cookie":cookieClear()});
