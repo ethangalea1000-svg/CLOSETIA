@@ -2,12 +2,43 @@ const COOKIE = "closetia_session";
 const SESSION_SECONDS = 60 * 60 * 24 * 14;
 const encoder = new TextEncoder();
 
+// Best-effort per-isolate throttling. Cloudflare edge DDoS/WAF rules are still required.
+const rateBuckets = new Map();
+function rateLimit(request, path) {
+  const now = Date.now();
+  const policy = path === "register" ? [5, 15 * 60 * 1000] :
+    path === "login" ? [10, 10 * 60 * 1000] :
+    path === "search" ? [40, 60 * 1000] :
+    (path === "request" || path === "accept") ? [20, 60 * 1000] : [90, 60 * 1000];
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const group = ["register", "login", "search", "request", "accept"].includes(path) ? path : "general";
+  const key = ip + ":" + group;
+  let bucket = rateBuckets.get(key);
+  if (!bucket || now - bucket.startedAt >= policy[1]) {
+    bucket = { startedAt: now, count: 0 };
+    rateBuckets.set(key, bucket);
+  }
+  bucket.count++;
+  if (rateBuckets.size > 5000) {
+    for (const [k, value] of rateBuckets) {
+      if (now - value.startedAt > 15 * 60 * 1000) rateBuckets.delete(k);
+    }
+  }
+  if (bucket.count > policy[0]) {
+    const retry = Math.max(1, Math.ceil((policy[1] - (now - bucket.startedAt)) / 1000));
+    return json({ ok: false, error: "Trop de requêtes. Attends un peu avant de réessayer." }, 429, { "Retry-After": String(retry) });
+  }
+  return null;
+}
+
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), { status, headers: {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store, private",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
     ...headers
   }});
 }
@@ -75,7 +106,20 @@ export async function onRequest({ request, env }) {
     return fail("Annuaire non configuré : la base D1 CLOSETIA_DB et le secret AUTH_SECRET doivent être configurés dans l’environnement Preview.", 503);
   }
   const url = new URL(request.url);
-  const path = url.pathname.replace(/^\/api\/accounts\/?/, "").replace(/\/$/, "");
+  const path = url.pathname.replace(/^\\/api\\/accounts\\/?/, "").replace(/\\/$/, "");
+  if (request.method === "POST") {
+    const origin = request.headers.get("Origin");
+    if (origin) {
+      try { if (new URL(origin).origin !== url.origin) return fail("Origine de requête refusée.", 403); }
+      catch (_) { return fail("Origine de requête invalide.", 403); }
+    }
+    const contentType = request.headers.get("Content-Type") || "";
+    if (contentType && !contentType.toLowerCase().startsWith("application/json")) return fail("Format de requête refusé.", 415);
+    const length = Number(request.headers.get("Content-Length") || 0);
+    if (length > 8192) return fail("Requête trop volumineuse.", 413);
+  }
+  const limited = rateLimit(request, path);
+  if (limited) return limited;
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: { "Access-Control-Allow-Origin": url.origin, "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "Content-Type" } });
   try { await init(env.CLOSETIA_DB); } catch (_) { return fail("La base de comptes n’est pas accessible. Vérifie la liaison D1 de la Preview.", 503); }
   const user = await currentUser(request, env);
