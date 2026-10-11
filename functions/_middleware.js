@@ -10,13 +10,22 @@ function safeEqual(a, b) {
   return diff === 0;
 }
 
+function securityHeaders(extra = {}) {
+  return {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Frame-Options": "DENY",
+    "Permissions-Policy": "geolocation=(), microphone=()",
+    ...extra
+  };
+}
+
 function privateHeaders(extra = {}) {
   return {
+    ...securityHeaders(),
     "Cache-Control": "no-store, private",
     "X-Robots-Tag": "noindex, nofollow, noarchive",
-    "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
-    "X-Frame-Options": "DENY",
     ...extra
   };
 }
@@ -43,6 +52,7 @@ export async function onRequest(context) {
     const upstreamResponse = await fetch(upstreamRequest);
     const responseHeaders = new Headers(upstreamResponse.headers);
     responseHeaders.set("Cache-Control", "no-store");
+    for (const [key, value] of Object.entries(securityHeaders())) responseHeaders.set(key, value);
     return new Response(upstreamResponse.body, {
       status: upstreamResponse.status,
       statusText: upstreamResponse.statusText,
@@ -50,7 +60,16 @@ export async function onRequest(context) {
     });
   }
 
-  if (!ADMIN_PATHS.has(pathname)) return context.next();
+  if (!ADMIN_PATHS.has(pathname)) {
+    const response = await context.next();
+    const headers = new Headers(response.headers);
+    for (const [key, value] of Object.entries(securityHeaders())) headers.set(key, value);
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers
+    });
+  }
 
   const expectedUser = context.env.ADMIN_USER;
   const expectedPassword = context.env.ADMIN_PASSWORD;
