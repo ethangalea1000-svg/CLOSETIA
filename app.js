@@ -1093,16 +1093,32 @@ function authGatePage(){
     '<div class="account-forms">'+
       '<form id="accountLoginForm" class="account-form"><h2>Se connecter</h2><label for="accountLoginName">Pseudo</label><input id="accountLoginName" maxlength="24" autocomplete="username" required><label for="accountLoginPassword">Mot de passe</label><input id="accountLoginPassword" type="password" maxlength="128" autocomplete="current-password" required><button class="primary" type="submit">Se connecter</button></form>'+
       '<form id="accountRegisterForm" class="account-form"><h2>Créer un compte</h2><label for="accountRegisterName">Pseudo unique</label><input id="accountRegisterName" maxlength="24" minlength="3" pattern="[A-Za-z0-9_.-]{3,24}" autocomplete="username" placeholder="ex. alex_style" required><small>3 à 24 caractères : lettres, chiffres, point, tiret ou soulignement.</small><label for="accountRegisterPassword">Mot de passe</label><input id="accountRegisterPassword" type="password" minlength="10" maxlength="128" autocomplete="new-password" required placeholder="10 caractères minimum"><button class="ghost" type="submit">Créer mon compte</button></form>'+
-    '</div><p id="accountMessage" class="account-message" role="status" aria-live="polite"></p><p class="muted auth-note">La connexion protège l’accès à l’interface. Pour protéger aussi les données enregistrées localement sur un appareil partagé, verrouille ta session Windows et ne partage pas cet appareil.</p></section></div>';
+    '</div><div class="account-forms email-auth-forms">'+
+      '<form id="emailRegisterForm" class="account-form"><h2>Créer un compte avec e-mail</h2><label for="emailRegisterName">Pseudo</label><input id="emailRegisterName" maxlength="24" minlength="3" pattern="[A-Za-z0-9_.-]{3,24}" required autocomplete="username"><label for="emailRegisterAddress">Adresse e-mail</label><input id="emailRegisterAddress" type="email" maxlength="254" autocomplete="email" required><label for="emailRegisterPassword">Mot de passe</label><input id="emailRegisterPassword" type="password" minlength="10" maxlength="128" autocomplete="new-password" required><button class="primary" type="submit">Créer mon compte e-mail</button></form>'+
+      '<form id="emailLoginForm" class="account-form"><h2>Connexion par e-mail</h2><label for="emailLoginAddress">Adresse e-mail</label><input id="emailLoginAddress" type="email" maxlength="254" autocomplete="email" required><label for="emailLoginPassword">Mot de passe</label><input id="emailLoginPassword" type="password" maxlength="128" autocomplete="current-password" required><button class="ghost" type="submit">Se connecter par e-mail</button></form>'+
+      '<form id="magicLinkForm" class="account-form"><h2>Lien magique</h2><label for="magicLinkAddress">Adresse e-mail</label><input id="magicLinkAddress" type="email" maxlength="254" autocomplete="email" required><button class="ghost" type="submit">Recevoir un lien de connexion</button><small>Requiert un fournisseur d’e-mail configuré côté serveur.</small></form>'+
+      '</div><p id="accountMessage" class="account-message" role="status" aria-live="polite"></p><p class="muted auth-note">La connexion protège l’accès à l’interface. Pour protéger aussi les données enregistrées localement sur un appareil partagé, verrouille ta session Windows et ne partage pas cet appareil.</p></section></div>';
 }
 
 function bindAuthGate(){
   if($("accountRegisterForm")) $("accountRegisterForm").addEventListener("submit",event=>submitAccountForm(event,"register"));
   if($("accountLoginForm")) $("accountLoginForm").addEventListener("submit",event=>submitAccountForm(event,"login"));
+  if($("emailRegisterForm")) $("emailRegisterForm").addEventListener("submit",submitEmailRegister);
+  if($("emailLoginForm")) $("emailLoginForm").addEventListener("submit",submitEmailLogin);
+  if($("magicLinkForm")) $("magicLinkForm").addEventListener("submit",requestMagicLink);
 }
 
 async function initializeAccountGate(){
   try{
+    const params=new URLSearchParams(location.search);
+    const magicToken=params.get("magic_token");
+    if(magicToken){
+      history.replaceState(null,"",location.pathname+location.hash);
+      const verified=await accountApi("magic-verify",{method:"POST",body:JSON.stringify({token:magicToken})});
+      accountSessionUser=verified.user||null;
+      accountGateError="";
+      return;
+    }
     const me=await accountApi("me");
     accountSessionUser=me.user||null;
     accountGateError="";
@@ -1179,6 +1195,34 @@ async function searchAccountUsers(query){
     box.innerHTML=data.users.length?data.users.map(u=>'<article class="account-result"><div><strong>'+esc(u.username)+'</strong><p class="muted">Compte existant</p></div><button class="primary" type="button" data-action="accountRequest" data-username="'+esc(u.username)+'">Ajouter</button></article>').join(""):'<p class="muted">Aucun compte correspondant.</p>';
     box.querySelectorAll('[data-action="accountRequest"]').forEach(btn=>btn.addEventListener("click",async()=>{try{const result=await accountApi("request",{method:"POST",body:JSON.stringify({username:btn.dataset.username})});accountMessage(result.message||"Demande envoyée.",false);await loadAccountDirectory();}catch(e){accountMessage(e.message,true);}}));
   }catch(e){box.innerHTML='<p class="muted">'+esc(e.message)+'</p>';}
+}
+async function submitEmailRegister(event){
+  event.preventDefault();
+  const username=$("emailRegisterName").value.trim(),email=$("emailRegisterAddress").value.trim(),password=$("emailRegisterPassword").value;
+  try{
+    const result=await accountApi("email-register",{method:"POST",body:JSON.stringify({username,email,password})});
+    accountSessionUser=result.user||null;accountGateChecked=true;accountGateError="";
+    accountMessage("Compte e-mail créé. Bienvenue sur CLOSETIA.",false);event.target.reset();
+    document.body.classList.toggle("auth-required",!accountSessionUser);render();
+  }catch(e){accountMessage(e.message,true);}
+}
+async function submitEmailLogin(event){
+  event.preventDefault();
+  const email=$("emailLoginAddress").value.trim(),password=$("emailLoginPassword").value;
+  try{
+    const result=await accountApi("email-login",{method:"POST",body:JSON.stringify({email,password})});
+    accountSessionUser=result.user||null;accountGateChecked=true;accountGateError="";
+    accountMessage("Connexion par e-mail réussie.",false);event.target.reset();
+    document.body.classList.toggle("auth-required",!accountSessionUser);render();
+  }catch(e){accountMessage(e.message,true);}
+}
+async function requestMagicLink(event){
+  event.preventDefault();
+  try{
+    const result=await accountApi("magic-request",{method:"POST",body:JSON.stringify({email:$("magicLinkAddress").value.trim()})});
+    accountMessage(result.message||"Si cette adresse correspond à un compte, un lien a été envoyé.",false);
+    event.target.reset();
+  }catch(e){accountMessage(e.message,true);}
 }
 async function submitAccountForm(event,kind){
   event.preventDefault();
