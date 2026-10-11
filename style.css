@@ -300,3 +300,11 @@ footer{padding:24px 16px 34px;text-align:center;color:var(--muted);font-size:12p
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 @media(max-width:800px){.friends-layout{grid-template-columns:1fr}.friends-add-card{padding:20px}.friends-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.friends-page .sectionhead{align-items:flex-start}.friends-total{padding:10px 12px}.friends-total strong{font-size:22px}.friends-grid{grid-template-columns:1fr}.friends-list-head{align-items:flex-start;flex-direction:column}.friends-search{width:100%}.friends-input-row{flex-direction:column}.friends-input-row button{width:100%}.friend-card{padding:12px}}
+
+/* Friend verification and invitation states */
+.friends-invite{margin-top:16px;padding:17px;border:1px dashed var(--line);border-radius:16px;background:var(--bg)}
+.friends-invite h3{margin:0 0 6px}
+.friends-invite .friends-hint{overflow-wrap:anywhere}
+.friend-card .friend-info{min-width:0}
+.friend-card .friend-info h3{overflow-wrap:anywhere}
+@media(max-width:520px){.friends-invite{padding:14px}.friends-input-row{align-items:stretch}.friends-input-row input{min-width:0}}
