@@ -322,13 +322,7 @@ function hasLocalData(snapshot){
   );
 }
 function hasRemoteData(snapshot){
-  return Boolean(snapshot && (
-    (Array.isArray(snapshot.items)&&snapshot.items.length) ||
-    (Array.isArray(snapshot.outfits)&&snapshot.outfits.length) ||
-    (snapshot.calendar&&Object.keys(snapshot.calendar).length) ||
-    (Array.isArray(snapshot.palette)&&snapshot.palette.length) ||
-    (snapshot.settings&&Object.keys(snapshot.settings).length)
-  ));
+  return hasLocalData(snapshot);
 }
 function mergeSnapshots(localSnapshot,remoteSnapshot){
   const defaults=fresh();
