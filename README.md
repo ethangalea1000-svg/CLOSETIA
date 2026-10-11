@@ -38,3 +38,15 @@ Dressing intelligent, local-first et portable.
 - Tests de charge avec beaucoup de photos.
 - Planificateur de tenues amélioré et recommandations météo plus intelligentes.
 - Audit séparé du Worker et de toutes les autorisations API.
+
+
+## Annuaire de comptes (Preview)
+
+L'annuaire utilise la fonction Pages `functions/api/accounts/[[path]].js` et D1. Pour l'activer dans l'environnement **Preview uniquement** :
+
+1. Dans Cloudflare Pages > CLOSETIA > Settings > Functions, lier la base D1 existante sous le nom de binding `CLOSETIA_DB`.
+2. Dans les variables/secrets de l'environnement Preview, ajouter `AUTH_SECRET` avec une valeur aléatoire d'au moins 32 caractères. Ne jamais la placer dans le code ou le navigateur.
+3. Redéployer la Preview, puis tester la création d'un compte, la connexion, la recherche et l'acceptation d'une demande.
+4. Ne pas activer en production avant les tests de sécurité et de fonctionnement.
+
+La fonction crée ses trois tables dédiées `closetia_accounts`, `closetia_friend_requests` et `closetia_friendships` dans la base D1 liée à cet environnement. Les mots de passe sont hachés avec PBKDF2; la session est un cookie signé, HttpOnly, Secure et SameSite=Lax. Le répertoire n'est pas opérationnel tant que le binding et le secret ne sont pas configurés.
