@@ -337,3 +337,26 @@ footer{padding:24px 16px 34px;text-align:center;color:var(--muted);font-size:12p
 .account-result .tag{white-space:nowrap}
 .account-directory [hidden],.account-forms[hidden],#accountDirectory[hidden]{display:none!important}
 @media(max-width:650px){.account-forms{grid-template-columns:1fr}.account-result{align-items:flex-start;flex-wrap:wrap}.account-result button{width:100%}}
+
+
+/* Mandatory account gate: keep the app navigation hidden until the server confirms a session. */
+.auth-required .topbar nav,
+.auth-required #cloudIndicator,
+.auth-required .topbar .iconbtn,
+.auth-required footer{display:none!important}
+.auth-required .topbar{justify-content:center;position:relative}
+.auth-required .topbar .logo{pointer-events:none}
+.auth-gate{max-width:900px;margin:4vh auto 0}
+.auth-hero{padding:clamp(24px,5vw,44px);margin-bottom:18px}
+.auth-hero h1{font-size:clamp(34px,6vw,58px);letter-spacing:-2px;line-height:1.02}
+.auth-hero h1 span{color:var(--purple)}
+.auth-gate-badge{display:inline-flex;margin-top:8px;padding:8px 12px;border:1px solid #d9d6fe;background:#f5f3ff;color:#5925dc;border-radius:999px;font-size:13px;font-weight:750}
+.auth-card{padding:clamp(20px,4vw,32px)}
+.auth-card h2{margin-top:0}
+.auth-card .account-forms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
+.auth-card .account-form{border:1px solid var(--line);border-radius:16px;padding:18px;background:#fcfcfd}
+.auth-card .account-form label{display:block;font-weight:700;margin:14px 0 6px}
+.auth-card .account-form input{width:100%;border:1px solid var(--line);border-radius:11px;padding:12px;background:#fff}
+.auth-card .account-form button{width:100%;margin-top:18px}
+.auth-note{font-size:12px;line-height:1.6;margin-top:22px}
+@media(max-width:650px){.auth-card .account-forms{grid-template-columns:1fr}.auth-gate{margin-top:12px}.auth-hero h1{letter-spacing:-1.5px}}
