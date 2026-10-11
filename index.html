@@ -2,15 +2,53 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#111827"><meta name="description" content="CLOSETIA — ton dressing intelligent, local-first et exportable">
-<link rel="manifest" href="manifest.json"><link rel="stylesheet" href="style.css?v=6"><title>CLOSETIA — Dressing intelligent</title>
+<meta name="theme-color" content="#111827">
+<meta name="description" content="CLOSETIA aide à organiser ton dressing, composer des tenues, explorer les couleurs et planifier tes looks. Application local-first avec données exportables, sans analyse corporelle.">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<link rel="canonical" href="https://closetia.pages.dev/">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css?v=7">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="CLOSETIA">
+<meta property="og:title" content="CLOSETIA — Organise ton dressing et tes tenues">
+<meta property="og:description" content="Organise tes vêtements, compose des tenues, explore les couleurs et planifie tes looks. Données exportables, sans analyse corporelle.">
+<meta property="og:url" content="https://closetia.pages.dev/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="CLOSETIA — Dressing intelligent">
+<meta name="twitter:description" content="Ton dressing, tes tenues et tes couleurs, dans une application local-first.">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "CLOSETIA",
+  "url": "https://closetia.pages.dev/",
+  "applicationCategory": "LifestyleApplication",
+  "operatingSystem": "Any",
+  "inLanguage": "fr",
+  "description": "Application web pour organiser son dressing, composer des tenues, explorer les couleurs et planifier ses looks. Données exportables et aucune analyse corporelle."
+}
+</script>
+<title>CLOSETIA — Organise ton dressing et tes tenues</title>
 </head>
 <body>
 <header class="topbar"><a class="logo" href="#/">CLOSETIA<span>.</span></a><nav>
 <a href="#/">Accueil</a><a href="#/dressing">Dressing</a><a href="#/tenues">Tenues</a><a href="#/wishlist">Envies</a><a href="#/palette">Couleurs</a><a href="#/colorimetrie">Colorimétrie</a><a href="#/profil">Mon style</a><a href="#/star">Outfit Star</a><a href="#/stars">Looks de stars</a><a href="#/memes">Même vêtements</a><a href="#/calendrier">Calendrier</a><a href="#/amis">Amis</a><a href="#/stats">Stats</a>
 </nav><button class="cloud-indicator local" id="cloudIndicator" onclick="openSettings()" aria-label="État de la connexion Cloudflare" title="Cloudflare non connecté sur cet appareil."><span class="cloud-dot" aria-hidden="true"></span><span>Mode local</span></button><button class="iconbtn" onclick="openSettings()" aria-label="Réglages">⚙</button></header>
-<main id="app"></main>
+<main id="app">
+<section class="seo-intro" aria-label="Présentation de CLOSETIA">
+  <p class="eyebrow">DRESSING INTELLIGENT</p>
+  <h1>Organise ton dressing. Compose tes tenues.</h1>
+  <p>CLOSETIA est une application web pour garder une vue claire sur tes vêtements, créer des tenues, explorer les harmonies de couleurs et planifier tes looks.</p>
+  <ul>
+    <li>Un dressing organisé par catégories, couleurs et favoris.</li>
+    <li>Un espace pour composer des tenues et suivre leur utilisation.</li>
+    <li>Des outils de couleurs, une liste d’envies et un calendrier.</li>
+    <li>Des données exportables et aucune analyse corporelle.</li>
+  </ul>
+  <p>Ouvre l’application pour commencer à organiser ton dressing.</p>
+</section>
+</main>
 <input id="photos" type="file" accept="image/*" multiple hidden><input id="importFile" type="file" accept=".json,application/json" hidden>
 <footer>CLOSETIA · local-first · données exportables · aucune analyse corporelle</footer>
-<script src="app.js?v=35"></script>
+<script src="app.js?v=36"></script>
 </body></html>
