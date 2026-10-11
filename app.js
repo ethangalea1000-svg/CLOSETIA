@@ -1514,8 +1514,8 @@ function connectionsPage(){
   const groups=[
     {title:"Authentification",items:[
       {name:"Pseudo + mot de passe",desc:"Méthode de compte déjà présente dans CLOSETIA.",state:"Disponible dans la version actuelle",kind:"existing"},
-      {name:"E-mail + mot de passe",desc:"Inscription et connexion par adresse e-mail.",state:"À implémenter côté serveur",kind:"email"} ,
-      {name:"Lien magique par e-mail",desc:"Envoi d’un lien à usage unique, valable 15 minutes.",state:"À implémenter avec un fournisseur d’e-mail",kind:"email"},
+      {name:"E-mail + mot de passe",desc:"Inscription et connexion par adresse e-mail avec mot de passe haché côté serveur.",state:"Code ajouté en Preview — test fonctionnel à effectuer",kind:"email"} ,
+      {name:"Lien magique par e-mail",desc:"Lien à usage unique valable 15 minutes.",state:"Code ajouté — nécessite RESEND_API_KEY et EMAIL_FROM",kind:"email"},
       {name:"Google",desc:"Connexion OAuth Google.",state:"OAuth non configuré",kind:"oauth"},
       {name:"Apple",desc:"Connexion avec Apple.",state:"OAuth non configuré",kind:"oauth"}
     ]},
