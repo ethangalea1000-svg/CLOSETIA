@@ -1,4 +1,4 @@
-const ADMIN_PATHS = new Set(["/admin.html", "/admin", "/admin/"]);
+const ADMIN_PATHS = new Set(["/admin.html", "/admin", "/admin/", "/admin-panel.html", "/admin-panel", "/admin-panel/"]);
 
 function safeEqual(a, b) {
   const left = new TextEncoder().encode(String(a));

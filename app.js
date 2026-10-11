@@ -1548,6 +1548,7 @@ function connectionsPage(){
 function render(){
   const hash=location.hash || "#/";
   const page=hash.startsWith("#/") ? hash.slice(2) : "";
+  if(page==="admin" && !/\/(?:admin\.html|admin-panel\.html)$/i.test(location.pathname)){ location.replace("admin-panel.html#/admin"); return; }
   const app=$("app");
   if(!app) return;
   document.body.classList.toggle("auth-required",!accountSessionUser);
@@ -1634,7 +1635,7 @@ db.items.forEach(item => {
   }
 });
 save(false);
-if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+if("serviceWorker" in navigator && !/\/(?:admin\.html|admin-panel\.html)$/i.test(location.pathname)) navigator.serviceWorker.register("sw.js").catch(()=>{});
 render();
 initializeAccountGate();
 checkCloudSession();

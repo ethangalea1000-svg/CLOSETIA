@@ -384,3 +384,10 @@ footer{padding:24px 16px 34px;text-align:center;color:var(--muted);font-size:12p
 .auth-provider{display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:14px;border:1px solid var(--line);border-radius:12px;background:#f8fafc;color:#344054;text-align:left;font-weight:750}
 .auth-provider small{font-size:12px;font-weight:500;color:#667085;line-height:1.4}
 .auth-provider:disabled{opacity:1;cursor:not-allowed;border-style:dashed}
+
+
+/* En-tête minimal de l’espace administrateur protégé */
+.admin-topbar{gap:16px}
+.admin-top-label{font-size:11px;font-weight:800;letter-spacing:1.3px;color:var(--muted);white-space:nowrap}
+.admin-back{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;padding:9px 13px;border:1px solid var(--line);border-radius:11px;color:var(--ink);background:#fff}
+@media(max-width:720px){.admin-topbar{height:auto;min-height:64px;flex-wrap:wrap;padding:12px 4%;gap:10px}.admin-top-label{order:3;width:100%}.admin-back{margin-left:auto}}

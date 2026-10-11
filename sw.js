@@ -1,5 +1,5 @@
-const CACHE="closetia-v49";
-const ASSETS=["./","./index.html","./style.css?v=9","./app.js?v=49","./manifest.json"];
+const CACHE="closetia-v50";
+const ASSETS=["./","./index.html","./style.css?v=9","./app.js?v=50","./manifest.json"];
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));
 });
@@ -16,7 +16,7 @@ self.addEventListener("fetch",event=>{
   if(request.method!=="GET") return;
   if(requestUrl.protocol!=="http:" && requestUrl.protocol!=="https:") return;
   if(requestUrl.origin!==self.location.origin) return;
-  if(requestUrl.pathname.startsWith("/api/closetia/")) return;
+  if(requestUrl.pathname.startsWith("/api/")) return;
 
   event.respondWith(
     fetch(request).then(response=>{

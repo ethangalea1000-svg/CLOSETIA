@@ -3,3 +3,5 @@ Allow: /
 Disallow: /admin.html
 
 Sitemap: https://closetia.pages.dev/sitemap.xml
+Disallow: /admin-panel.html
+Disallow: /admin-panel

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#111827">
+<link rel="stylesheet" href="style.css?v=9">
+<title>Administration — CLOSETIA</title>
+</head>
+<body>
+<header class="topbar admin-topbar">
+  <a class="logo" href="./">CLOSETIA<span>.</span></a>
+  <span class="admin-top-label">ESPACE ADMINISTRATEUR</span>
+  <a class="ghost admin-back" href="./">Retour au dressing</a>
+  <button class="cloud-indicator local" id="cloudIndicator" onclick="openSettings()" aria-label="État de la connexion Cloudflare" title="État de la connexion Cloudflare"><span class="cloud-dot" aria-hidden="true"></span><span>État du cloud</span></button>
+  <button class="iconbtn" onclick="openSettings()" aria-label="Réglages">⚙</button>
+</header>
+<main id="app"></main>
+<input id="photos" type="file" accept="image/*" multiple hidden>
+<input id="importFile" type="file" accept=".json,application/json" hidden>
+<footer>CLOSETIA · administration privée · accès contrôlé côté serveur</footer>
+<script>if(!location.hash)history.replaceState(null,"",location.pathname+"#/admin");</script>
+<script src="app.js?v=27"></script>
+</body>
+</html>
