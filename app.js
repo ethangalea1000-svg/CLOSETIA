@@ -1469,8 +1469,9 @@ function adminUnavailablePage(){
 function connectionsPage(){
   const groups=[
     {title:"Authentification",items:[
-      {name:"E-mail + mot de passe",desc:"Connexion au compte CLOSETIA.",state:"Disponible dans la version actuelle",kind:"existing"},
-      {name:"Lien magique par e-mail",desc:"Envoi d’un lien à usage unique, valable 15 minutes.",state:"À configurer côté serveur",kind:"email"},
+      {name:"Pseudo + mot de passe",desc:"Méthode de compte déjà présente dans CLOSETIA.",state:"Disponible dans la version actuelle",kind:"existing"},
+      {name:"E-mail + mot de passe",desc:"Inscription et connexion par adresse e-mail.",state:"À implémenter côté serveur",kind:"email"} ,
+      {name:"Lien magique par e-mail",desc:"Envoi d’un lien à usage unique, valable 15 minutes.",state:"À implémenter avec un fournisseur d’e-mail",kind:"email"},
       {name:"Google",desc:"Connexion OAuth Google.",state:"OAuth non configuré",kind:"oauth"},
       {name:"Apple",desc:"Connexion avec Apple.",state:"OAuth non configuré",kind:"oauth"}
     ]},
