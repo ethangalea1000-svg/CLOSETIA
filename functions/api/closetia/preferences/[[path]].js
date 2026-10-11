@@ -66,8 +66,13 @@ export async function onRequest({ request, env }) {
   }
 
   const url = new URL(request.url);
-  if (url.origin !== new URL(request.url).origin) {
-    return json({ ok: false, error: "Origine refusée." }, 403);
+  const origin = request.headers.get("Origin");
+  if (origin) {
+    try {
+      if (new URL(origin).origin !== url.origin) return json({ ok: false, error: "Origine refusée." }, 403);
+    } catch (_) {
+      return json({ ok: false, error: "Origine invalide." }, 403);
+    }
   }
 
   if (request.method !== "GET" && request.method !== "PUT") {
