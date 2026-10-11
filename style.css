@@ -308,3 +308,11 @@ footer{padding:24px 16px 34px;text-align:center;color:var(--muted);font-size:12p
 .friend-card .friend-info{min-width:0}
 .friend-card .friend-info h3{overflow-wrap:anywhere}
 @media(max-width:520px){.friends-invite{padding:14px}.friends-input-row{align-items:stretch}.friends-input-row input{min-width:0}}
+
+
+/* SEO-friendly introductory content, also useful before the app initializes */
+.seo-intro{max-width:920px;margin:22px auto 30px;padding:clamp(24px,5vw,48px);background:linear-gradient(135deg,#fff,#f2f0ff);border:1px solid var(--line);border-radius:26px;box-shadow:0 18px 50px #1018280b}
+.seo-intro h1{max-width:780px;font-size:clamp(34px,6vw,62px);line-height:1.02;letter-spacing:-.045em;margin:12px 0 18px}
+.seo-intro p,.seo-intro li{max-width:760px;color:var(--muted);font-size:17px;line-height:1.7}
+.seo-intro ul{padding-left:24px}
+@media(max-width:600px){.seo-intro{padding:23px;border-radius:18px}.seo-intro h1{font-size:36px;letter-spacing:-.035em}.seo-intro p,.seo-intro li{font-size:15px}}
