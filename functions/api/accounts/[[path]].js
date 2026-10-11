@@ -104,7 +104,7 @@ async function init(db) {
 }
 async function passwordHash(password, salt) {
   const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
-  return b64u(new Uint8Array(await crypto.subtle.deriveBits({ name:"PBKDF2", salt: unb64u(salt), iterations: 180000, hash:"SHA-256" }, key, 256)));
+  return b64u(new Uint8Array(await crypto.subtle.deriveBits({ name:"PBKDF2", salt: unb64u(salt), iterations: 100000, hash:"SHA-256" }, key, 256)));
 }
 function validEmail(value) {
   return typeof value === "string" && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
