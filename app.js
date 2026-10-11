@@ -1082,33 +1082,84 @@ function removeWishlistItem(id){
   if(!save()){list.splice(index,0,removed);}
 }
 
+async function accountApi(path, options={}){
+  const response=await fetch("/api/accounts/"+path,{credentials:"same-origin",headers:{"Content-Type":"application/json",...(options.headers||{})},...options});
+  const data=await response.json().catch(()=>({ok:false,error:"Réponse serveur illisible."}));
+  if(!response.ok||data.ok===false)throw new Error(data.error||"La demande a échoué.");
+  return data;
+}
 function friendsPage(){
-  var fs=Array.isArray(db.settings.friends)?db.settings.friends:[];
-  var q=(($("friendSearch")||{}).value||"").trim().toLocaleLowerCase("fr");
-  var visible=fs.map(function(name,index){return {name:String(name),index:index};}).filter(function(x){return !q||x.name.toLocaleLowerCase("fr").includes(q);});
-  function initials(name){return String(name).trim().split(/\\s+/).filter(Boolean).slice(0,2).map(function(part){return part.charAt(0).toLocaleUpperCase("fr");}).join("")||"?";}
   return '<div class="section friends-page">'+
-    '<div class="sectionhead"><div><span class="eyebrow">ESPACE SOCIAL</span><h1>Mes amis</h1><p class="muted">Prépare tes échanges de tenues et garde ta liste d’amis organisée.</p></div><div class="friends-total"><strong>'+fs.length+'</strong><span>'+(fs.length>1?'amis enregistrés':'ami enregistré')+'</span></div></div>'+
-    '<div class="friends-layout">'+
-      '<section class="card friends-add-card"><span class="friends-icon" aria-hidden="true">＋</span><h2>Ajouter un ami</h2><p class="muted">Enregistre son prénom ou son pseudo pour le retrouver facilement.</p>'+
-        '<form id="friendForm" class="friends-form"><label for="friendName">Pseudo CLOSETIA de la personne</label><div class="friends-input-row"><input id="friendName" name="friendName" maxlength="40" autocomplete="off" placeholder="Ex. alex_style" required><button class="primary" type="submit">Vérifier</button></div><p class="friends-hint">Un pseudo saisi ne prouve pas que le compte existe. CLOSETIA ne dispose pas encore d’un annuaire de comptes : aucun nouveau contact ne sera ajouté comme ami confirmé sans vérification.</p></form><div class="friends-invite"><h3>La personne n’a pas encore de compte ?</h3><p class="muted">Prépare un lien pour lui proposer de découvrir CLOSETIA.</p><button class="ghost" type="button" data-action="inviteFriend">Copier le lien d’invitation</button><p id="friendInviteStatus" class="friends-hint" role="status"></p></div>'+
-      '</section>'+
-      '<section class="friends-list-panel"><div class="friends-list-head"><div><h2>Ma liste</h2><p class="muted">'+(q?'Résultats de recherche':'Tes contacts CLOSETIA')+'</p></div><label class="friends-search"><span class="sr-only">Rechercher un ami</span><input id="friendSearch" type="search" placeholder="Rechercher…" value="'+esc(q)+'" aria-label="Rechercher un ami"></label></div>'+
-      (visible.length?'<div class="friends-grid">'+visible.map(function(x){return '<article class="card friend-card"><div class="friend-avatar" aria-hidden="true">'+esc(initials(x.name))+'</div><div class="friend-info"><h3>'+esc(x.name)+'</h3><p class="muted">Contact local · compte non vérifié</p></div><button class="friend-remove" type="button" data-action="removeFriend" data-id="'+x.index+'" aria-label="Supprimer '+esc(x.name)+'" title="Supprimer cet ami">Retirer</button></article>';}).join("")+'</div>':
-      '<div class="empty friends-empty"><span class="friends-empty-icon" aria-hidden="true">♧</span><h3>'+(q?'Aucun résultat':'Ta liste commence ici')+'</h3><p>'+(q?'Essaie un autre prénom ou pseudo.':'Ajoute un ami pour garder son contact dans CLOSETIA.')+'</p>'+(q?'<button class="ghost" type="button" data-action="clearFriendSearch">Effacer la recherche</button>':'')+'</div>')+
-      '</section></div>'+
-      '<aside class="friends-privacy"><span aria-hidden="true">🔒</span><p><strong>Confidentialité</strong><br>Les contacts locaux ne sont pas des amis confirmés. La recherche de comptes, les invitations suivies et le partage de tenues nécessitent encore une API de comptes.</p></aside>'+
-    '</div>';
+    '<div class="sectionhead"><div><span class="eyebrow">ESPACE SOCIAL</span><h1>Mes amis</h1><p class="muted">Crée ton compte CLOSETIA, retrouve les membres inscrits et confirme tes amitiés avec leur accord.</p></div></div>'+
+    '<section class="card account-card"><div id="accountStatus" class="muted" role="status">Vérification de la connexion à l’annuaire…</div>'+
+      '<div id="accountForms" class="account-forms">'+
+        '<form id="accountRegisterForm" class="account-form"><h2>Créer un compte</h2><label for="accountRegisterName">Pseudo unique</label><input id="accountRegisterName" maxlength="24" minlength="3" pattern="[A-Za-z0-9_.-]{3,24}" autocomplete="username" placeholder="ex. alex_style" required><small>3 à 24 caractères : lettres, chiffres, point, tiret ou soulignement.</small><label for="accountRegisterPassword">Mot de passe</label><input id="accountRegisterPassword" type="password" minlength="10" maxlength="128" autocomplete="new-password" required placeholder="10 caractères minimum"><button class="primary" type="submit">Créer mon compte</button></form>'+
+        '<form id="accountLoginForm" class="account-form"><h2>J’ai déjà un compte</h2><label for="accountLoginName">Pseudo</label><input id="accountLoginName" maxlength="24" autocomplete="username" required><label for="accountLoginPassword">Mot de passe</label><input id="accountLoginPassword" type="password" maxlength="128" autocomplete="current-password" required><button class="ghost" type="submit">Me connecter</button></form>'+
+      '</div><p id="accountMessage" class="account-message" role="status" aria-live="polite"></p>'+
+      '<div id="accountDirectory" hidden></div></section>'+
+    '<aside class="friends-privacy"><span aria-hidden="true">🔒</span><p><strong>Confidentialité</strong><br>Les mots de passe ne sont jamais affichés dans l’annuaire. Seuls les pseudos sont recherchables. Une demande devient une amitié uniquement lorsque l’autre membre l’accepte.</p></aside>'+
+  '</div>';
+}
+function accountMessage(text,isError){
+  const node=$("accountMessage");if(!node)return;
+  node.textContent=text||"";node.classList.toggle("error",!!isError);node.classList.toggle("success",!isError&&!!text);
+}
+async function loadAccountDirectory(){
+  const status=$("accountStatus"),forms=$("accountForms"),directory=$("accountDirectory");
+  if(!status||!forms||!directory)return;
+  try{
+    const me=await accountApi("me");
+    status.innerHTML='<strong>Connecté en tant que '+esc(me.user.username)+'</strong> <button class="ghost" type="button" data-action="accountLogout">Déconnexion</button>';
+    forms.hidden=true;directory.hidden=false;
+    const [friends,requests]=await Promise.all([accountApi("friends"),accountApi("requests")]);
+    directory.innerHTML='<div class="account-directory"><div class="sectionhead"><div><h2>Annuaire des membres</h2><p class="muted">Recherche par pseudo réel parmi les comptes enregistrés.</p></div></div><label for="accountSearch">Rechercher un pseudo</label><div class="friends-input-row"><input id="accountSearch" maxlength="24" autocomplete="off" placeholder="Tape au moins 2 caractères"><button class="ghost" type="button" data-action="accountSearch">Rechercher</button></div><div id="accountSearchResults" class="account-results"><p class="muted">Saisis un pseudo pour rechercher un membre.</p></div>'+
+      '<h2>Demandes reçues <span class="tag">'+requests.requests.length+'</span></h2><div class="account-results">'+(requests.requests.length?requests.requests.map(r=>'<article class="account-result"><div><strong>'+esc(r.username)+'</strong><p class="muted">Demande d’ami reçue</p></div><button class="primary" type="button" data-action="accountAccept" data-id="'+esc(r.id)+'">Accepter</button></article>').join(""):'<p class="muted">Aucune demande en attente.</p>')+'</div>'+
+      '<h2>Mes amis confirmés <span class="tag">'+friends.friends.length+'</span></h2><div class="account-results">'+(friends.friends.length?friends.friends.map(x=>'<article class="account-result"><strong>'+esc(x.username)+'</strong><span class="tag">Ami confirmé</span></article>').join(""):'<p class="muted">Tu n’as pas encore d’ami confirmé.</p>')+'</div></div>';
+    const search=$("accountSearch");
+    if(search)search.addEventListener("input",()=>searchAccountUsers(search.value));
+  }catch(error){
+    if(error.message&&error.message.includes("Connecte-toi")){
+      status.textContent="Tu n’es pas connecté.";
+      forms.hidden=false;directory.hidden=true;
+    }else{
+      status.textContent="L’annuaire n’est pas encore disponible.";
+      forms.hidden=false;directory.hidden=true;
+      accountMessage(error.message+" Vérifie la liaison D1 CLOSETIA_DB et le secret AUTH_SECRET dans l’environnement Preview.",true);
+    }
+  }
+}
+async function searchAccountUsers(query){
+  const box=$("accountSearchResults");if(!box)return;
+  const q=String(query||"").trim();
+  if(q.length<2){box.innerHTML='<p class="muted">Saisis au moins 2 caractères.</p>';return;}
+  box.innerHTML='<p class="muted">Recherche…</p>';
+  try{
+    const data=await accountApi("search?q="+encodeURIComponent(q));
+    box.innerHTML=data.users.length?data.users.map(u=>'<article class="account-result"><div><strong>'+esc(u.username)+'</strong><p class="muted">Compte existant</p></div><button class="primary" type="button" data-action="accountRequest" data-username="'+esc(u.username)+'">Ajouter</button></article>').join(""):'<p class="muted">Aucun compte correspondant.</p>';
+    box.querySelectorAll('[data-action="accountRequest"]').forEach(btn=>btn.addEventListener("click",async()=>{try{const result=await accountApi("request",{method:"POST",body:JSON.stringify({username:btn.dataset.username})});accountMessage(result.message||"Demande envoyée.",false);await loadAccountDirectory();}catch(e){accountMessage(e.message,true);}}));
+  }catch(e){box.innerHTML='<p class="muted">'+esc(e.message)+'</p>';}
+}
+async function submitAccountForm(event,kind){
+  event.preventDefault();
+  const register=kind==="register";
+  const username=$(register?"accountRegisterName":"accountLoginName").value.trim();
+  const password=$(register?"accountRegisterPassword":"accountLoginPassword").value;
+  try{
+    const result=await accountApi(register?"register":"login",{method:"POST",body:JSON.stringify({username,password})});
+    accountMessage(register?"Compte créé. Bienvenue sur CLOSETIA.":"Connexion réussie.",false);
+    event.target.reset();
+    await loadAccountDirectory();
+  }catch(e){accountMessage(e.message,true);}
+}
+async function logoutAccount(){
+  try{await accountApi("logout",{method:"POST",body:"{}"});accountMessage("Déconnexion effectuée.",false);await loadAccountDirectory();}catch(e){accountMessage(e.message,true);}
+}
+async function acceptAccountRequest(id){
+  try{const result=await accountApi("accept",{method:"POST",body:JSON.stringify({id})});accountMessage(result.message||"Amitié confirmée.",false);await loadAccountDirectory();}catch(e){accountMessage(e.message,true);}
 }
 function addFriend(){
-  var input=$("friendName"), n=((input||{}).value||"").trim().replace(/\\s+/g," ");
-  if(!n)return;
-  if(n.length>40){alert("Le pseudo doit contenir au maximum 40 caractères.");return;}
-  var fs=Array.isArray(db.settings.friends)?db.settings.friends:[];
-  if(fs.some(function(x){return String(x).trim().toLocaleLowerCase("fr")===n.toLocaleLowerCase("fr");})){
-    alert("Ce contact local existe déjà. Son compte n’a toutefois pas été vérifié.");return;
-  }
-  alert("Compte introuvable ou annuaire indisponible : CLOSETIA ne peut pas vérifier ce pseudo pour l’instant. Utilise « Copier le lien d’invitation » et n’ajoute pas cette personne comme ami confirmé.");
+  const input=$("friendName");
+  if(input)searchAccountUsers(input.value);
 }
 async function inviteFriend(){
   var url=location.origin+location.pathname+"#/amis";
