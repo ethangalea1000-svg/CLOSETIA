@@ -1,3 +1,7 @@
 User-agent: *
+Allow: /
 Disallow: /admin.html
-Disallow: /admin
+
+Sitemap: https://closetia.pages.dev/sitemap.xml
+Disallow: /admin-panel.html
+Disallow: /admin-panel

@@ -1,5 +1,5 @@
-const CACHE="closetia-v26";
-const ASSETS=["./","./index.html","./style.css","./app.js?v=27","./manifest.json"];
+const CACHE="closetia-v50";
+const ASSETS=["./","./index.html","./style.css?v=9","./app.js?v=50","./manifest.json"];
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));
 });
@@ -7,14 +7,24 @@ self.addEventListener("activate",event=>{
   event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));
 });
 self.addEventListener("fetch",event=>{
-  if(event.request.method!=="GET")return;
+  const request=event.request;
+  let requestUrl;
+  try { requestUrl=new URL(request.url); } catch (_) { return; }
+
+  // Only intercept same-origin HTTP(S) GET requests. Ignore chrome-extension:// and other
+  // non-web schemes, cross-origin resources, and API responses that must never be cached.
+  if(request.method!=="GET") return;
+  if(requestUrl.protocol!=="http:" && requestUrl.protocol!=="https:") return;
+  if(requestUrl.origin!==self.location.origin) return;
+  if(requestUrl.pathname.startsWith("/api/")) return;
+
   event.respondWith(
-    fetch(event.request).then(response=>{
+    fetch(request).then(response=>{
       if(response.ok){
         const copy=response.clone();
-        caches.open(CACHE).then(cache=>cache.put(event.request,copy));
+        event.waitUntil(caches.open(CACHE).then(cache=>cache.put(request,copy)));
       }
       return response;
-    }).catch(()=>caches.match(event.request).then(cached=>cached||caches.match("./index.html")))
+    }).catch(()=>caches.match(request).then(cached=>cached||caches.match("./index.html")))
   );
 });

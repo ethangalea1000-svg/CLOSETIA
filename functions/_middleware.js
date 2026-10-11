@@ -1,49 +1,84 @@
-const ADMIN_PATHS = new Set(["/admin.html", "/admin", "/admin/"]);
+const ADMIN_PATHS = new Set(["/admin.html", "/admin", "/admin/", "/admin-panel.html", "/admin-panel", "/admin-panel/"]);
 
 function safeEqual(a, b) {
-  const encoder = new TextEncoder();
-  const left = encoder.encode(String(a));
-  const right = encoder.encode(String(b));
+  const left = new TextEncoder().encode(String(a));
+  const right = new TextEncoder().encode(String(b));
   let diff = left.length ^ right.length;
-  const length = Math.max(left.length, right.length);
-  for (let i = 0; i < length; i++) {
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
     diff |= (left[i] || 0) ^ (right[i] || 0);
   }
   return diff === 0;
 }
 
+function securityHeaders(extra = {}) {
+  return {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Frame-Options": "DENY",
+    "Permissions-Policy": "geolocation=(), microphone=()",
+    ...extra
+  };
+}
+
+function privateHeaders(extra = {}) {
+  return {
+    ...securityHeaders(),
+    "Cache-Control": "no-store, private",
+    "X-Robots-Tag": "noindex, nofollow, noarchive",
+    "Referrer-Policy": "no-referrer",
+    ...extra
+  };
+}
+
 function challenge(message = "Authentification requise.") {
   return new Response(message, {
     status: 401,
-    headers: {
+    headers: privateHeaders({
       "WWW-Authenticate": 'Basic realm="CLOSETIA Admin", charset="UTF-8"',
-      "Cache-Control": "no-store, private",
-      "Content-Type": "text/plain; charset=utf-8",
-      "X-Robots-Tag": "noindex, nofollow, noarchive",
-      "X-Content-Type-Options": "nosniff",
-      "Referrer-Policy": "no-referrer"
-    }
+      "Content-Type": "text/plain; charset=utf-8"
+    })
   });
 }
 
 export async function onRequest(context) {
   const url = new URL(context.request.url);
   const pathname = url.pathname.toLowerCase();
-  if (!ADMIN_PATHS.has(pathname)) return context.next();
+
+  // Same-origin API proxy: browsers call Pages, Pages calls the Worker server-to-server.
+  // This avoids browser CORS preflight failures without changing the existing Worker or D1.
+  if (pathname.startsWith("/api/closetia/")) {
+    const upstreamUrl = new URL(url.pathname + url.search, "https://cloud-manager-gateway.ethan-galea1000.workers.dev");
+    const upstreamRequest = new Request(upstreamUrl.toString(), context.request);
+    const upstreamResponse = await fetch(upstreamRequest);
+    const responseHeaders = new Headers(upstreamResponse.headers);
+    responseHeaders.set("Cache-Control", "no-store");
+    for (const [key, value] of Object.entries(securityHeaders())) responseHeaders.set(key, value);
+    return new Response(upstreamResponse.body, {
+      status: upstreamResponse.status,
+      statusText: upstreamResponse.statusText,
+      headers: responseHeaders
+    });
+  }
+
+  if (!ADMIN_PATHS.has(pathname)) {
+    const response = await context.next();
+    const headers = new Headers(response.headers);
+    for (const [key, value] of Object.entries(securityHeaders())) headers.set(key, value);
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers
+    });
+  }
 
   const expectedUser = context.env.ADMIN_USER;
   const expectedPassword = context.env.ADMIN_PASSWORD;
 
-  // Fail closed: never serve the admin page if secrets were not configured.
+  // Fail closed: never expose the admin page until both Cloudflare secrets exist.
   if (!expectedUser || !expectedPassword) {
-    return new Response("Administration indisponible : configure ADMIN_USER et ADMIN_PASSWORD dans les variables d’environnement Cloudflare Pages.", {
+    return new Response("Administration indisponible : configurez ADMIN_USER et ADMIN_PASSWORD dans les variables d’environnement Cloudflare Pages.", {
       status: 503,
-      headers: {
-        "Cache-Control": "no-store, private",
-        "Content-Type": "text/plain; charset=utf-8",
-        "X-Robots-Tag": "noindex, nofollow, noarchive",
-        "X-Content-Type-Options": "nosniff"
-      }
+      headers: privateHeaders({ "Content-Type": "text/plain; charset=utf-8" })
     });
   }
 
@@ -54,7 +89,7 @@ export async function onRequest(context) {
   try {
     const binary = atob(header.slice(6).trim());
     const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
-    supplied = new TextDecoder().decode(bytes);
+    supplied = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
     return challenge();
   }
@@ -69,11 +104,7 @@ export async function onRequest(context) {
 
   const response = await context.next();
   const headers = new Headers(response.headers);
-  headers.set("Cache-Control", "no-store, private");
-  headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
-  headers.set("X-Content-Type-Options", "nosniff");
-  headers.set("Referrer-Policy", "no-referrer");
-  headers.set("X-Frame-Options", "DENY");
+  for (const [key, value] of Object.entries(privateHeaders())) headers.set(key, value);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
