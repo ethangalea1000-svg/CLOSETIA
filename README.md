@@ -40,6 +40,15 @@ Dressing intelligent, local-first et portable.
 - Audit séparé du Worker et de toutes les autorisations API.
 
 
+## Connexion obligatoire et protection des comptes (Preview)
+
+- La page de connexion/création de compte s’affiche avant toute route de l’application. Une session serveur valide est requise pour afficher les pages.
+- L’API des comptes applique une limitation de débit de secours par adresse IP et type de route, rejette les requêtes POST cross-origin et refuse les corps JSON annoncés au-delà de 8 Ko.
+- La limitation en mémoire est **best-effort** : elle peut être réinitialisée lors d’un redémarrage d’instance et ne remplace pas la protection DDoS au niveau Cloudflare.
+- Dans Cloudflare, activer les protections DDoS gérées, les règles WAF gérées et une règle de limitation de débit ciblant `/api/accounts/*`. Pour commencer, limiter les rafales par IP sur l’API, puis appliquer des limites plus strictes à `/register` et `/login`. Ajuster après observation pour ne pas bloquer les utilisateurs légitimes.
+- Le verrouillage d’interface n’est pas un chiffrement du stockage local : les données déjà enregistrées dans `localStorage` restent accessibles depuis le même navigateur/appareil. La synchronisation et les opérations serveur doivent également vérifier la session.
+- La protection Cloudflare réseau/WAF ne peut pas être activée par un changement du dépôt seul ; elle nécessite une configuration dans le tableau de bord Cloudflare.
+
 ## Annuaire de comptes (Preview)
 
 L'annuaire utilise la fonction Pages `functions/api/accounts/[[path]].js` et D1. Pour l'activer dans l'environnement **Preview uniquement** :
