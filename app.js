@@ -1465,6 +1465,29 @@ function adminUnavailablePage(){
   return '<div class="section"><div class="card admin-panel"><span class="eyebrow">ACCÈS RESTREINT</span><h1>Administration temporairement désactivée</h1><p class="muted">L’espace administrateur sera réactivé après le déploiement de la version protégée sur Cloudflare Pages. Cette version GitHub Pages ne peut pas appliquer l’authentification côté serveur.</p><a class="primary" href="./">Retour à CLOSETIA</a></div></div>';
 }
 
+
+function connectionsPage(){
+  const groups=[
+    {title:"Authentification",items:[
+      {name:"E-mail + mot de passe",desc:"Connexion au compte CLOSETIA.",state:"Disponible dans la version actuelle",kind:"existing"},
+      {name:"Lien magique par e-mail",desc:"Envoi d’un lien à usage unique, valable 15 minutes.",state:"À configurer côté serveur",kind:"email"},
+      {name:"Google",desc:"Connexion OAuth Google.",state:"OAuth non configuré",kind:"oauth"},
+      {name:"Apple",desc:"Connexion avec Apple.",state:"OAuth non configuré",kind:"oauth"}
+    ]},
+    {title:"Assistants IA",items:[
+      {name:"OpenAI / ChatGPT",desc:"Une connexion API CLOSETIA dédiée, distincte de ton compte ChatGPT.",state:"Intégration API non configurée",kind:"ai"},
+      {name:"Google Gemini",desc:"Une connexion API CLOSETIA dédiée.",state:"Intégration API non configurée",kind:"ai"},
+      {name:"Anthropic Claude",desc:"Une connexion API CLOSETIA dédiée.",state:"Intégration API non configurée",kind:"ai"}
+    ]},
+    {title:"Autres applications",items:[
+      {name:"Catalogue de connexions",desc:"Les prochaines intégrations pourront être ajoutées ici avec autorisations explicites et révocation.",state:"Espace de gestion en préparation",kind:"planned"}
+    ]}
+  ];
+  return '<div class="section connections-page"><span class="eyebrow">ESPACE PRIVÉ</span><h1>Connexions</h1><p class="muted">Gère ici les fournisseurs d’identité et les intégrations externes de CLOSETIA. Aucun service n’est déclaré connecté sans vérification serveur.</p><div class="notice connections-notice">Aucune connexion externe n’est activée par cette page. Les statuts ci-dessous décrivent l’état de l’intégration, pas une connexion réelle.</div>'+
+    groups.map(function(group){return '<section class="connection-group"><h2>'+esc(group.title)+'</h2><div class="connection-grid">'+group.items.map(function(item){return '<article class="card connection-card"><div class="connection-title"><h3>'+esc(item.name)+'</h3><span class="connection-state '+(item.kind==="existing"?"state-available":"state-pending")+'">'+esc(item.state)+'</span></div><p class="muted">'+esc(item.desc)+'</p>'+ (item.kind==="existing" ? '<span class="muted">La connexion actuelle reste disponible via l’écran de compte.</span>' : '<button class="ghost" type="button" disabled aria-disabled="true">Indisponible tant que non configuré</button>')+'</article>';}).join("")+'</div></section>';}).join("")+
+    '<section class="card connection-setup"><h2>Préparation nécessaire</h2><ul><li>Pour les liens e-mail : fournisseur d’envoi vérifié et secrets configurés dans Cloudflare Preview.</li><li>Pour Google et Apple : créer les identifiants OAuth et enregistrer les URL de rappel exactes.</li><li>Pour chaque assistant IA : clé API serveur dédiée, permissions minimales et limites d’usage.</li></ul><p class="muted">Les clés secrètes ne doivent jamais être enregistrées dans le navigateur ni partagées dans le chat. La production et sa base D1 ne sont pas touchées.</p></section></div>';
+}
+
 function render(){
   const hash=location.hash || "#/";
   const page=hash.startsWith("#/") ? hash.slice(2) : "";
@@ -1482,7 +1505,7 @@ function render(){
   const selectionEnd=active&&typeof active.selectionEnd==="number"?active.selectionEnd:null;
   document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("active",a.getAttribute("href")==="#/"+page));
   try{
-    app.innerHTML=page==="dressing"?dressing():page==="tenues"?outfits():page==="wishlist"?wishlistPage():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="stars"?celebrityLooksPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():page==="memes"?sameClothesPage():page==="admin"?adminUnavailablePage():home();
+    app.innerHTML=page==="connexions"?connectionsPage():page==="dressing"?dressing():page==="tenues"?outfits():page==="wishlist"?wishlistPage():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="stars"?celebrityLooksPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():page==="memes"?sameClothesPage():page==="admin"?adminUnavailablePage():home();
     bindPage();
     if(page==="stars") setTimeout(loadCelebrityLooks,0);
     if(activeId){
