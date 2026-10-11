@@ -73,3 +73,12 @@ Pour activer l’envoi des liens magiques, ajouter dans les secrets/variables **
 Ne jamais committer ces valeurs. Les offres gratuites et les restrictions d’expédition des fournisseurs peuvent évoluer; vérifie les limites actuelles du fournisseur. Tant que ces deux valeurs ne sont pas configurées, la connexion e-mail avec mot de passe ne dépend pas du fournisseur, mais le lien magique ne peut pas être envoyé.
 
 Les connexions Google et Apple, ainsi que les clés API des assistants IA, restent non configurées. Ne pas fusionner en production avant tests manuels, revue de sécurité et configuration séparée.
+
+
+## Méthodes de connexion supplémentaires — Preview
+
+Le formulaire de lien magique demande maintenant le pseudo et l’e-mail, qui doivent correspondre au même compte. L’envoi exige toujours les secrets `RESEND_API_KEY` et `EMAIL_FROM`.
+
+Les choix Facebook, X, Apple, Google et LinkedIn sont affichés comme indisponibles tant que chaque fournisseur OAuth n’a pas ses identifiants, URL de rappel et route serveur validés. Ils ne déclenchent aucune fausse connexion. Le QR de connexion exige un protocole d’appairage avec jeton temporaire à usage unique et confirmation sur l’appareil déjà connecté; la biométrie exige WebAuthn/passkeys côté serveur. Ces deux mécanismes sont indiqués comme à développer et ne sont pas activés par cette modification.
+
+**Important :** l’interface seule ne suffit pas à activer ces méthodes. Ne pas considérer Facebook/X/Apple/Google/LinkedIn, QR ou biométrie comme opérationnels avant implémentation backend, configuration des fournisseurs et tests de sécurité dans la Preview. La production et sa base D1 ne doivent pas être modifiées pour ces essais.
