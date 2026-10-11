@@ -595,6 +595,106 @@ function setCalendarDay(key){
   save();
 }
 
+function refreshNotificationStatus(){
+  const el=$("notificationStatus"), enable=$("enableNotifications"), test=$("testNotification");
+  if(!el)return;
+  if(!("Notification" in window)){
+    el.textContent="Les notifications ne sont pas prises en charge par ce navigateur.";
+    if(enable)enable.disabled=true;
+    if(test)test.disabled=true;
+    return;
+  }
+  const permission=Notification.permission;
+  el.textContent=permission==="granted"?"Notifications autorisées sur cet appareil.":permission==="denied"?"Notifications bloquées dans les réglages du navigateur.":"Autorisation non accordée.";
+  if(enable)enable.textContent=permission==="granted"?"Notifications activées":"Activer les notifications";
+  if(test)test.disabled=permission!=="granted";
+}
+async function enableNotifications(){
+  if(!("Notification" in window)){alert("Ce navigateur ne prend pas en charge les notifications.");return;}
+  try{
+    const permission=await Notification.requestPermission();
+    refreshNotificationStatus();
+    if(permission==="granted"){
+      try{localStorage.setItem("closetia.notifications.enabled","1");}catch(ignore){}
+      sendTestNotification();
+    }else if(permission==="denied"){
+      alert("Les notifications sont bloquées. Tu peux les autoriser dans les réglages du navigateur pour ce site.");
+    }
+  }catch(e){alert("Impossible de demander l’autorisation des notifications dans ce navigateur.");}
+}
+async function sendTestNotification(){
+  if(!("Notification" in window)||Notification.permission!=="granted"){
+    refreshNotificationStatus();
+    alert("Autorise d’abord les notifications dans les réglages CLOSETIA.");
+    return;
+  }
+  const options={body:"Les notifications du navigateur sont prêtes sur cet appareil.",icon:"icon.svg",tag:"closetia-test"};
+  try{
+    if("serviceWorker" in navigator){
+      const registration=await navigator.serviceWorker.getRegistration();
+      if(registration && registration.showNotification){
+        await registration.showNotification("CLOSETIA",options);
+        return;
+      }
+    }
+    new Notification("CLOSETIA",options);
+  }catch(e){alert("Le navigateur n’a pas pu afficher la notification. Vérifie les autorisations du site.");}
+}
+function refreshUpdateStatus(message){
+  const el=$("updateStatus");
+  if(el)el.textContent=message||"Vérification automatique des nouvelles versions activée.";
+}
+async function checkAppUpdate(){
+  if($("updateStatus"))$("updateStatus").textContent="Recherche d’une nouvelle version…";
+  try{
+    if(!("serviceWorker" in navigator)){refreshUpdateStatus("Les mises à jour automatiques ne sont pas prises en charge ici.");return;}
+    const registration=await navigator.serviceWorker.getRegistration();
+    if(!registration){refreshUpdateStatus("Service worker absent. Recharge CLOSETIA en ligne pour le réinstaller.");return;}
+    await registration.update();
+    if(registration.waiting){
+      refreshUpdateStatus("Une mise à jour est prête. Elle sera appliquée après confirmation.");
+      if(confirm("Une nouvelle version de CLOSETIA est prête. Recharger maintenant pour l’appliquer ?")){
+        registration.waiting.postMessage({type:"SKIP_WAITING"});
+      }
+    }else{
+      refreshUpdateStatus("Aucune nouvelle version détectée pour le moment.");
+    }
+  }catch(e){refreshUpdateStatus("Vérification impossible. Réessaie lorsque tu es en ligne.");}
+}
+function setupAppUpdates(){
+  if(!("serviceWorker" in navigator)||/\/(?:admin\.html|admin-panel\.html)$/i.test(location.pathname))return;
+  let refreshing=false;
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{
+    if(refreshing)return;
+    refreshing=true;
+    location.reload();
+  });
+  navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).then(registration=>{
+    registration.update().catch(()=>{});
+    if(registration.waiting)refreshUpdateStatus("Une mise à jour est prête. Ouvre les réglages pour l’appliquer.");
+    registration.addEventListener("updatefound",()=>{
+      const installing=registration.installing;
+      if(!installing)return;
+      installing.addEventListener("statechange",()=>{
+        if(installing.state==="installed"&&navigator.serviceWorker.controller){
+          refreshUpdateStatus("Nouvelle version téléchargée. Ouvre les réglages pour l’appliquer.");
+          if("Notification" in window&&Notification.permission==="granted"&&localStorage.getItem("closetia.notifications.enabled")==="1"){
+            sendUpdateReadyNotification();
+          }
+        }
+      });
+    });
+  }).catch(()=>{});
+}
+async function sendUpdateReadyNotification(){
+  try{
+    const registration=await navigator.serviceWorker.getRegistration();
+    if(registration&&registration.showNotification){
+      await registration.showNotification("Mise à jour CLOSETIA disponible",{body:"Une nouvelle version est prête. Ouvre CLOSETIA et applique-la depuis les réglages.",icon:"icon.svg",tag:"closetia-update"});
+    }
+  }catch(ignore){}
+}
+
 function openSettings(){
   const modal=document.createElement("div");
   modal.className="modalback";
@@ -610,6 +710,20 @@ function openSettings(){
           <button class="primary" id="connectCloud">Connecter / synchroniser</button>
           <button class="ghost" id="disconnectCloud">Déconnecter</button>
         </div>
+      </div>
+      <div class="card" style="margin:12px 0;padding:14px">
+        <h3>Notifications CLOSETIA</h3>
+        <p id="notificationStatus" class="muted">Vérification des autorisations du navigateur…</p>
+        <div class="actions">
+          <button class="primary" id="enableNotifications">Activer les notifications</button>
+          <button class="ghost" id="testNotification">Envoyer une notification test</button>
+        </div>
+        <p class="muted">Les notifications sont soumises à l’autorisation du navigateur. Les notifications envoyées quand CLOSETIA est complètement fermée nécessitent un service Push côté serveur.</p>
+      </div>
+      <div class="card" style="margin:12px 0;padding:14px">
+        <h3>Mises à jour de l’application</h3>
+        <p id="updateStatus" class="muted">CLOSETIA vérifie les nouvelles versions automatiquement.</p>
+        <div class="actions"><button class="ghost" id="checkAppUpdate">Vérifier les mises à jour</button></div>
       </div>
       <div class="actions">
         <button class="ghost" id="exportJSON">Exporter JSON</button>
@@ -627,6 +741,11 @@ function openSettings(){
   storagePanel.innerHTML="<h3>État du stockage</h3><p id='storageDiagnostics' class='muted'>Calcul de la taille des données…</p><p class='muted'>Les photos font partie de la sauvegarde et de la synchronisation actuelles. Si le Cloud signale des données trop volumineuses, exporte un JSON avant toute nouvelle tentative et évite de te déconnecter/reconnecter en boucle.</p>";
   $("connectCloud").parentElement.parentElement.after(storagePanel);
   updateStorageDiagnostics();
+  refreshNotificationStatus();
+  $("enableNotifications").onclick=enableNotifications;
+  $("testNotification").onclick=sendTestNotification;
+  $("checkAppUpdate").onclick=checkAppUpdate;
+  refreshUpdateStatus();
   $("connectCloud").onclick=connectCloudflare;
   $("disconnectCloud").onclick=disconnectCloudflare;
   $("exportJSON").onclick=exportJSON;
@@ -1635,7 +1754,7 @@ db.items.forEach(item => {
   }
 });
 save(false);
-if("serviceWorker" in navigator && !/\/(?:admin\.html|admin-panel\.html)$/i.test(location.pathname)) navigator.serviceWorker.register("sw.js").catch(()=>{});
+setupAppUpdates();
 render();
 initializeAccountGate();
 checkCloudSession();
