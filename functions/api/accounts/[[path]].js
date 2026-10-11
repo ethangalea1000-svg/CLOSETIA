@@ -106,7 +106,7 @@ export async function onRequest({ request, env }) {
     return fail("Annuaire non configuré : la base D1 CLOSETIA_DB et le secret AUTH_SECRET doivent être configurés dans l’environnement Preview.", 503);
   }
   const url = new URL(request.url);
-  const path = url.pathname.replace(/^\\/api\\/accounts\\/?/, "").replace(/\\/$/, "");
+  const path = url.pathname.replace(/^\/api\/accounts\/?/, "").replace(/\/$/, "");
   if (request.method === "POST") {
     const origin = request.headers.get("Origin");
     if (origin) {
