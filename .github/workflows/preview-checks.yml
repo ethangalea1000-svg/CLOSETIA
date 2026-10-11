@@ -1,0 +1,26 @@
+name: CLOSETIA Preview checks
+
+on:
+  push:
+    branches:
+      - cloudflare-pages-ready
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  syntax-and-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check app JavaScript syntax
+        run: node --check app.js
+      - name: Check Cloudflare middleware syntax
+        run: node --input-type=module --check < functions/_middleware.js
+      - name: Test snapshot merge protections
+        run: node tests/preview-smoke.test.mjs
