@@ -951,7 +951,7 @@ function loadCelebrityLooks(){
       var fashion=/fashion|style|outfit|red carpet|street style|wardrobe|dress|designer|clothing|look|appearance|mode|tenue|vestiaire|robe|couture|fashion week/.test(text);
       var date=new Date(item.published||item.publishedAt||item.date||item.updated||0);
       var recent=!isNaN(date.getTime())&&date.getTime()>Date.now()-1000*60*60*24*120;
-      return containsName&&fashion&&recent&&item.url;
+      return containsName&&fashion&&recent&&safeExternalUrl(item.url);
     }).slice(0,3);
     if(!relevant.length){box.innerHTML='<p class="muted">Aucun article mode récent et suffisamment pertinent trouvé. Réessaie plus tard.</p>';return}
     box.innerHTML=relevant.map(function(item){
@@ -959,7 +959,7 @@ function loadCelebrityLooks(){
       var dateText=!isNaN(date.getTime())&&date.getTime()>0?date.toLocaleDateString("fr-FR",{day:"numeric",month:"short",year:"numeric"}):"Date non fournie";
       var source=item.attribution&&item.attribution.publisher||item.source&&item.source.name||item.publisher||"Source de l’article";
       var image=articleImage(item);
-      return '<article class="celebrity-news-item">'+(safeImage(image)?'<img class="celebrity-news-image" loading="lazy" src="'+esc(image)+'" alt="Illustration de l’article" referrerpolicy="no-referrer">':'')+'<p>'+esc(item.title||"Actualité mode")+'</p><small>'+esc(source)+' · '+esc(dateText)+'</small><p><a href="'+esc(item.url)+'" target="_blank" rel="noopener noreferrer">Lire l’article ↗</a></p></article>';
+      return '<article class="celebrity-news-item">'+(safeImage(image)?'<img class="celebrity-news-image" loading="lazy" src="'+esc(image)+'" alt="Illustration de l’article" referrerpolicy="no-referrer">':'')+'<p>'+esc(item.title||"Actualité mode")+'</p><small>'+esc(source)+' · '+esc(dateText)+'</small><p><a href="'+esc(safeExternalUrl(item.url))+'" target="_blank" rel="noopener noreferrer">Lire l’article ↗</a></p></article>';
     }).join("");
   }
   celebs.forEach(function(c,i){
