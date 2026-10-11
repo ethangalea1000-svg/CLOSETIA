@@ -44,9 +44,9 @@ Dressing intelligent, local-first et portable.
 
 L'annuaire utilise la fonction Pages `functions/api/accounts/[[path]].js` et D1. Pour l'activer dans l'environnement **Preview uniquement** :
 
-1. Dans Cloudflare Pages > CLOSETIA > Settings > Functions, lier la base D1 existante sous le nom de binding `CLOSETIA_DB`.
+1. Créer une **base D1 séparée pour les tests**, par exemple `closetia-preview`. Ne lie pas la base D1 de production à la Preview. Dans Cloudflare Pages > CLOSETIA > Settings > Functions, lier cette base de test sous le nom de binding `CLOSETIA_DB` pour l’environnement Preview uniquement.
 2. Dans les variables/secrets de l'environnement Preview, ajouter `AUTH_SECRET` avec une valeur aléatoire d'au moins 32 caractères. Ne jamais la placer dans le code ou le navigateur.
 3. Redéployer la Preview, puis tester la création d'un compte, la connexion, la recherche et l'acceptation d'une demande.
 4. Ne pas activer en production avant les tests de sécurité et de fonctionnement.
 
-La fonction crée ses trois tables dédiées `closetia_accounts`, `closetia_friend_requests` et `closetia_friendships` dans la base D1 liée à cet environnement. Les mots de passe sont hachés avec PBKDF2; la session est un cookie signé, HttpOnly, Secure et SameSite=Lax. Le répertoire n'est pas opérationnel tant que le binding et le secret ne sont pas configurés.
+La fonction crée ses trois tables dédiées `closetia_accounts`, `closetia_friend_requests` et `closetia_friendships` dans la base D1 liée à cet environnement. **Ne pas utiliser la base de production** : l’initialisation crée des tables et écrit les comptes dans la base liée. Les mots de passe sont hachés avec PBKDF2; la session est un cookie signé, HttpOnly, Secure et SameSite=Lax. Le répertoire n'est pas opérationnel tant que le binding et le secret ne sont pas configurés.
