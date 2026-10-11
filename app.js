@@ -57,33 +57,22 @@ function load(){
 }
 
 const CLOUD_API = ""; // Same-origin: proxied by Cloudflare Pages Functions to avoid browser CORS failures.
-const CLOUD_TOKEN_KEY = "closetia.cloud.session";
+const CLOUD_TOKEN_KEY = "closetia.cloud.session"; // Legacy key: ignored by the account-based sync.
 const CLOUD_PENDING_KEY = "closetia.cloud.pending";
 let cloudSyncTimer = null;
 let cloudSyncRunning = false;
 let cloudSyncAgain = false;
 let cloudReady = false;
-let cloudStatusText = cloudToken() ? "Vérification de la connexion Cloudflare…" : cloudTokenStatusInitial();
+let cloudAccountConnected = false;
+let cloudStatusText = "Non connecté. Les données restent locales.";
 let cloudStatusIsError = false;
 function cloudTokenStatusInitial(){ return "Non connecté. Les données restent locales."; }
 
-function cloudToken(){
-  try{
-    const saved=localStorage.getItem(CLOUD_TOKEN_KEY);
-    if(saved) return saved;
-    const legacy=sessionStorage.getItem(CLOUD_TOKEN_KEY);
-    if(legacy){localStorage.setItem(CLOUD_TOKEN_KEY,legacy);return legacy;}
-    return "";
-  }catch(e){
-    try{return sessionStorage.getItem(CLOUD_TOKEN_KEY)||"";}catch(ignore){return "";}
-  }
-}
+function cloudToken(){ return cloudAccountConnected ? "account-session" : ""; }
 
 async function cloudRequest(path, options={}){
   const headers={"Content-Type":"application/json",...(options.headers||{})};
-  const token=cloudToken();
-  if(token) headers.Authorization="Bearer "+token;
-  const response=await fetch(CLOUD_API+path,{...options,headers});
+  const response=await fetch(CLOUD_API+path,{credentials:"same-origin",...options,headers});
   let body={};
   try{body=await response.json();}catch(e){}
   if(!response.ok || body.ok===false) throw new Error(body.erreur||body.error||("Erreur Cloudflare HTTP "+response.status));
@@ -147,12 +136,18 @@ function showCloudStatus(message,isError){
   }
 }
 async function checkCloudSession(){
-  if(!cloudToken()){
+  try{
+    const session=await accountApi("me");
+    accountSessionUser=session.user||null;
+    cloudAccountConnected=Boolean(accountSessionUser);
+  }catch(e){
+    cloudAccountConnected=false;
     cloudReady=false;
-    setCloudIndicator("local","Mode local","Cloudflare non connecté sur cet appareil.");
+    setCloudIndicator("local","Mode local","Connecte-toi à ton compte CLOSETIA pour activer la synchronisation.");
     return;
   }
-  setCloudIndicator("checking","Vérification…","Vérification de la session Cloudflare.");
+  if(!cloudAccountConnected){cloudReady=false;return;}
+  setCloudIndicator("checking","Vérification…","Vérification de la session de ton compte CLOSETIA.");
   try{
     const result=await cloudRequest("/api/closetia/preferences/main",{method:"GET"});
     const candidate=result.record||result.item||result.data;
@@ -200,9 +195,9 @@ async function checkCloudSession(){
     cloudReady=true;
   }catch(e){
     cloudReady=false;
-    if(/401|403|connexion requise|jeton|token|authentification/i.test(e.message)){
-      try{localStorage.removeItem(CLOUD_TOKEN_KEY);sessionStorage.removeItem(CLOUD_TOKEN_KEY);}catch(ignore){}
-      showCloudStatus("Session expirée. Reconnecte-toi à Cloudflare.",true);
+    if(/401|403|connexion requise|connecte-toi à ton compte|session|jeton|token|authentification/i.test(e.message)){
+      cloudAccountConnected=false;
+      showCloudStatus("Session CLOSETIA expirée. Reconnecte-toi à ton compte.",true);
     }else{
       showCloudStatus("Cloudflare temporairement injoignable. Vérifie la connexion.",true);
     }
@@ -210,23 +205,12 @@ async function checkCloudSession(){
 }
 
 async function connectCloudflare(){
-  let token=cloudToken();
   try{
-    if(!token){
-      const password=prompt("Mot de passe CLOSETIA Cloud. Il ne sera pas enregistré en clair.");
-      if(password===null) return;
-      if(!password){alert("Saisis le mot de passe pour te connecter.");return;}
-      const response=await fetch(CLOUD_API+"/api/closetia/login",{
-        method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password})
-      });
-      let login={};try{login=await response.json();}catch(e){}
-      if(!response.ok||login.ok===false||!login.token) throw new Error(login.erreur||login.error||"Connexion refusée. Vérifie le mot de passe.");
-      token=login.token;
-      localStorage.setItem(CLOUD_TOKEN_KEY,token);
-    }else{
-      showCloudStatus("Session enregistrée trouvée. Vérification de la connexion…",false);
-    }
-    showCloudStatus("Connexion établie. Vérification des données…",false);
+    const session=await accountApi("me");
+    accountSessionUser=session.user||null;
+    if(!accountSessionUser) throw new Error("Connecte-toi à ton compte CLOSETIA avant d’activer la synchronisation.");
+    cloudAccountConnected=true;
+    showCloudStatus("Compte CLOSETIA reconnu. Vérification des données…",false);
     let remote=null;
     try{
       const result=await cloudRequest("/api/closetia/preferences/main",{method:"GET"});
@@ -267,19 +251,18 @@ async function connectCloudflare(){
     closeModal();
     openSettings();
   }catch(e){
-    if(/401|403|connexion requise|jeton|token|authentification/i.test(e.message)){
-      try{localStorage.removeItem(CLOUD_TOKEN_KEY);sessionStorage.removeItem(CLOUD_TOKEN_KEY);}catch(ignore){}
-    }
-    showCloudStatus("Cloudflare indisponible : "+e.message,true);
+    if(/401|403|connexion requise|session|authentification/i.test(e.message)) cloudAccountConnected=false;
+    showCloudStatus("Synchronisation indisponible : "+e.message,true);
     alert("Connexion/synchronisation impossible : "+e.message);
   }
 }
 
 function disconnectCloudflare(){
   cloudReady=false;
+  cloudAccountConnected=false;
   clearTimeout(cloudSyncTimer);
   try{localStorage.removeItem(CLOUD_TOKEN_KEY);sessionStorage.removeItem(CLOUD_TOKEN_KEY);}catch(e){}
-  showCloudStatus("Déconnecté. Les données restent enregistrées sur cet appareil.",false);
+  showCloudStatus("Synchronisation désactivée. Ton compte CLOSETIA reste connecté et les données locales sont conservées.",false);
 }
 
 function save(shouldRender=true){
@@ -1604,7 +1587,7 @@ function stats(){
 
 function adminPage(){
   const worn=db.items.reduce((sum,item)=>sum+(Number(item.wears)||0),0);
-  const cloud=cloudToken()?"Session enregistrée sur cet appareil":"Aucune session Cloudflare enregistrée sur cet appareil";
+  const cloud=cloudAccountConnected?"Compte CLOSETIA authentifié":"Aucune session de compte CLOSETIA active";
   const updated=db.settings&&db.settings.lastUpdated?new Date(db.settings.lastUpdated).toLocaleString("fr-FR"):"Information non disponible";
   return `
     <div class="section admin-section">
