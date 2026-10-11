@@ -148,3 +148,11 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .admin-note{border-color:#fed7aa;background:#fffaf5}
 .admin-note h2{color:#9a3412}
 @media(max-width:600px){.admin-panel{padding:17px}.admin-line{flex-direction:column;gap:5px}.admin-line strong{text-align:left}}
+
+
+/* Recommandations de style explicables */
+.recommendation-card{min-width:0}
+.recommendation-card>.card{height:100%;margin:0}
+.recommendation-reasons{margin:9px 4px 0;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface,#fff);font-size:13px;line-height:1.55}
+.recommendation-reasons b{display:block;margin-bottom:3px;color:var(--ink)}
+#storageDiagnostics{overflow-wrap:anywhere;line-height:1.65}
