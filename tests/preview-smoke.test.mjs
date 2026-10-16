@@ -68,13 +68,21 @@ assert.equal(helpers.hasLocalData({ settings: { wishlist: [{ id: "w", name: "wis
 
 const htmlSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 assert.ok(htmlSource.includes('id="primaryNav" aria-label="Navigation principale"'), "navigation must have an accessible landmark label");
-assert.ok(htmlSource.includes('style.css?v=12') && htmlSource.includes('app.js?v=55'), "HTML asset versions must match the current release");
+assert.ok(htmlSource.includes('style.css?v=13') && htmlSource.includes('app.js?v=56'), "HTML asset versions must match the current release");
 assert.ok(source.includes('function updatePrimaryNav(page)'), "navigation must update the active route");
 assert.ok(source.includes('setAttribute("aria-current","page")'), "current navigation link must be announced to assistive technology");
 const workerSource = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
-assert.ok(workerSource.includes('closetia-v55'), "service worker cache must be versioned with the release");
+assert.ok(workerSource.includes('closetia-v56'), "service worker cache must be versioned with the release");
 assert.ok(workerSource.includes('if (url.pathname.startsWith("/api/")) return;'), "private API responses must never be cached");
 const cssSource = readFileSync(new URL("../style.css", import.meta.url), "utf8");
 assert.ok(cssSource.includes('prefers-reduced-motion:reduce'), "reduced-motion preferences must be respected");
 
 console.log("CLOSETIA Preview checks passed.");
+
+assert.ok(source.includes("function colorimetryPage()"), "colorimetry page must render the local harmony lab");
+assert.ok(source.includes("harmonyBase") && source.includes("harmonyCustom"), "colorimetry must allow a named or custom base color");
+assert.ok(source.includes('function getColorHarmony(scheme)'), "harmony calculations must remain client-side");
+assert.ok(source.includes("À essayer avec ton dressing"), "harmony suggestions must match wardrobe items");
+assert.ok(source.includes("targetHues.some"), "wardrobe matching must use hue proximity");
+assert.ok(htmlSource.includes('style.css?v=13') && htmlSource.includes('app.js?v=56'), "HTML asset versions must match the colorimetry release");
+assert.ok(workerSource.includes('closetia-v56'), "service worker cache must be bumped with the colorimetry release");

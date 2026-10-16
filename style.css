@@ -426,3 +426,26 @@ img{max-width:100%}
 #primaryNav a:focus-visible{outline:3px solid var(--purple);outline-offset:-3px}
 @media(max-width:800px){#primaryNav{padding:2px 2px 7px;scroll-padding-inline:12px;scroll-snap-type:x proximity}#primaryNav a{scroll-snap-align:start}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}#primaryNav{scroll-behavior:auto}*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+
+/* Atelier de colorimétrie local — sélecteurs accessibles et roue chromatique */
+.harmony-lab{margin-top:18px}
+.harmony-picker-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:18px 0}
+.harmony-picker-grid>div{display:flex;flex-direction:column;gap:7px;min-width:0}
+.harmony-picker-grid label{font-weight:750}
+.harmony-picker-grid select{width:100%;min-height:44px;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink)}
+.harmony-picker-grid input[type=color]{width:100%;height:46px;padding:4px;border:1px solid var(--line);border-radius:12px;background:#fff;cursor:pointer}
+.chromatic-wheel{width:min(190px,55vw);aspect-ratio:1;margin:8px auto 18px;border-radius:50%;background:conic-gradient(#ff3b30,#ff9500,#ffcc00,#34c759,#00c7be,#007aff,#5856d6,#af52de,#ff2d55,#ff3b30);position:relative;box-shadow:inset 0 0 0 1px #0001}
+.chromatic-wheel:after{content:"";position:absolute;inset:28%;border-radius:50%;background:var(--card);border:1px solid var(--line)}
+.chromatic-wheel span{position:absolute;z-index:1;inset:42%;border-radius:50%;background:var(--ink)}
+.harmony-actions{justify-content:center}
+.harmony-results{margin-top:16px}
+.harmony-matches{margin:18px 0}
+.harmony-matches h3{margin-bottom:10px}
+.harmony-match-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:9px}
+.harmony-match-list article{display:flex;align-items:center;gap:11px;min-width:0;padding:11px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.harmony-match-list .swatch{flex:0 0 30px}
+.harmony-match-list article div{display:flex;flex-direction:column;min-width:0}
+.harmony-match-list article b{overflow-wrap:anywhere}
+.harmony-match-list small{font-size:12px;color:var(--muted)}
+@media(max-width:520px){.harmony-picker-grid{grid-template-columns:1fr}.harmony-actions{align-items:stretch}.harmony-actions button{flex:1 1 100%}}
