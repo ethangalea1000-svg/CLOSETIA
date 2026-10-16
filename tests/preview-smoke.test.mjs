@@ -78,3 +78,11 @@ const cssSource = readFileSync(new URL("../style.css", import.meta.url), "utf8")
 assert.ok(cssSource.includes('prefers-reduced-motion:reduce'), "reduced-motion preferences must be respected");
 
 console.log("CLOSETIA Preview checks passed.");
+
+assert.ok(source.includes("function colorimetryPage()"), "colorimetry page must render the local harmony lab");
+assert.ok(source.includes('id="harmonyBase"') && source.includes('id="harmonyCustom"'), "colorimetry must allow a named or custom base color");
+assert.ok(source.includes('function getColorHarmony(scheme)'), "harmony calculations must remain client-side");
+assert.ok(source.includes("À essayer avec ton dressing"), "harmony suggestions must match wardrobe items");
+assert.ok(source.includes("targetHues.some"), "wardrobe matching must use hue proximity");
+assert.ok(htmlSource.includes('style.css?v=13') && htmlSource.includes('app.js?v=56'), "HTML asset versions must match the colorimetry release");
+assert.ok(workerSource.includes('closetia-v56'), "service worker cache must be bumped with the colorimetry release");
