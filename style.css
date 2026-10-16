@@ -414,3 +414,6 @@ img{max-width:100%}
   html{scroll-behavior:auto}
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+/* Valise connectée — formulaires lisibles et confortables sur mobile */
+.trip-form{margin-top:18px}.trip-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.trip-fields label{display:flex;flex-direction:column;gap:7px;font-weight:700}.trip-fields input{width:100%;min-height:44px;border:1px solid var(--line);border-radius:12px;padding:11px;background:#fff;color:var(--ink)}.trip-item-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;margin:12px 0 18px}.trip-item{display:grid;grid-template-columns:auto 1fr;align-items:center;text-align:left}.trip-item input{grid-row:span 2;min-width:18px;min-height:18px}.trip-item small{grid-column:2}.trip-list{margin-top:28px}.trip-card{margin:14px 0}.trip-garments{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0}@media(max-width:600px){.trip-fields{grid-template-columns:1fr}.trip-item-list{grid-template-columns:1fr}.trip-card .sectionhead{align-items:flex-start}}
