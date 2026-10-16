@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - cloudflare-pages-ready
+      - audit/seo-ux-performance-2026-10
   pull_request:
     branches:
       - main
+      - cloudflare-pages-migration
 
 jobs:
   syntax-and-regression:

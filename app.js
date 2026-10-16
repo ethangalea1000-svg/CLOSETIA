@@ -14,7 +14,7 @@ const importFile = $("importFile");
 
 let db = load();
 
-function fresh(){ return {items:[],outfits:[],calendar:{},palette:[],settings:{profile:{name:"",city:"",styles:[],models:[],brands:[],budget:50,weather:true,colors:[]},colorimetry:{palette:[],status:"Non définie"},friends:[],shared:[],lookTracker:[],wishlist:[]}}; }
+function fresh(){ return {items:[],outfits:[],calendar:{},palette:[],settings:{profile:{name:"",city:"",styles:[],models:[],brands:[],budget:50,weather:true,colors:[]},colorimetry:{palette:[],status:"Non définie"},friends:[],shared:[],lookTracker:[],wishlist:[],travelPlans:[]}}; }
 
 function makeId(){
   if(window.crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -48,7 +48,7 @@ function load(){
       outfits:Array.isArray(x.outfits)?x.outfits:[],
       calendar:x.calendar && typeof x.calendar==="object"?x.calendar:{},
       palette:Array.isArray(x.palette)?x.palette:[],
-      settings:{...fresh().settings,...(x.settings||{}),profile:{...fresh().settings.profile,...((x.settings&&x.settings.profile)||{})},colorimetry:{...fresh().settings.colorimetry,...((x.settings&&x.settings.colorimetry)||{}),palette:Array.isArray(x.settings&&x.settings.colorimetry&&x.settings.colorimetry.palette)?x.settings.colorimetry.palette:[],selectedColors:Array.isArray(x.settings&&x.settings.colorimetry&&x.settings.colorimetry.selectedColors)?x.settings.colorimetry.selectedColors:[]},friends:Array.isArray(x.settings&&x.settings.friends)?x.settings.friends:[],shared:Array.isArray(x.settings&&x.settings.shared)?x.settings.shared:[],wishlist:Array.isArray(x.settings&&x.settings.wishlist)?x.settings.wishlist:[]}
+      settings:{...fresh().settings,...(x.settings||{}),profile:{...fresh().settings.profile,...((x.settings&&x.settings.profile)||{})},colorimetry:{...fresh().settings.colorimetry,...((x.settings&&x.settings.colorimetry)||{}),palette:Array.isArray(x.settings&&x.settings.colorimetry&&x.settings.colorimetry.palette)?x.settings.colorimetry.palette:[],selectedColors:Array.isArray(x.settings&&x.settings.colorimetry&&x.settings.colorimetry.selectedColors)?x.settings.colorimetry.selectedColors:[]},friends:Array.isArray(x.settings&&x.settings.friends)?x.settings.friends:[],shared:Array.isArray(x.settings&&x.settings.shared)?x.settings.shared:[],wishlist:Array.isArray(x.settings&&x.settings.wishlist)?x.settings.wishlist:[],travelPlans:Array.isArray(x.settings&&x.settings.travelPlans)?x.settings.travelPlans:[]}
     };
   }catch(e){
     console.error("CLOSETIA load error",e);
@@ -353,7 +353,8 @@ function mergeSnapshots(localSnapshot,remoteSnapshot){
       friends:[...new Set([...(Array.isArray(rs.friends)?rs.friends:[]),...(Array.isArray(ls.friends)?ls.friends:[])])],
       shared:mergeRecords(rs.shared,ls.shared),
       lookTracker:mergeRecords(rs.lookTracker,ls.lookTracker),
-      wishlist:mergeRecords(rs.wishlist,ls.wishlist)
+      wishlist:mergeRecords(rs.wishlist,ls.wishlist),
+      travelPlans:mergeRecords(rs.travelPlans,ls.travelPlans)
     }
   };
 }
@@ -784,7 +785,7 @@ function demo(){
 }
 
 function itemCard(item){
-  const image=item.image ? `<img src="${esc(item.image)}" alt="${esc(item.name)}">` : '<div class="empty">Pas de photo</div>';
+  const image=item.image ? `<img loading="lazy" decoding=\"async\" src="${esc(item.image)}" alt="${esc(item.name)}">` : '<div class="empty">Pas de photo</div>';
   return `
     <article class="card item">
       <div class="photo">${image}<button class="heart ${item.favorite?"on":""}" data-action="favorite" data-id="${item.id}">${item.favorite?"♥":"♡"}</button></div>
@@ -965,14 +966,14 @@ function shoppingSuggestions(){
   var budget=Number(p.budget||0);
   var stores=[{name:"Zalando",domain:"zalando.fr"},{name:"Kiabi",domain:"kiabi.com"},{name:"H&M",domain:"hm.com"},{name:"Decathlon",domain:"decathlon.fr"}];
   var productPhotos={
-    "t-shirt":"https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=85",
-    "sweat":"https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&w=900&q=85",
-    "jean":"https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=900&q=85",
-    "veste":"https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=900&q=85",
-    "sneakers":"https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=85",
-    "chaussures":"https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=85",
-    "robe":"https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=900&q=85",
-    "sac":"https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=900&q=85"
+    "t-shirt":"https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=640&q=75",
+    "sweat":"https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&w=640&q=75",
+    "jean":"https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=640&q=75",
+    "veste":"https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=640&q=75",
+    "sneakers":"https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=640&q=75",
+    "chaussures":"https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=640&q=75",
+    "robe":"https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=640&q=75",
+    "sac":"https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=640&q=75"
   };
   function photoFor(model){
     var key=String(model).toLowerCase();
@@ -981,7 +982,7 @@ function shoppingSuggestions(){
   }
   return "<div class=\"shopping-card shopping-section\"><span class=\"eyebrow\">IDÉES D’ACHAT</span><h2>Modèles à découvrir</h2><p class=\"muted\">Des visuels d’inspiration sont affichés directement ici. Tu peux aussi consulter les magasins si tu veux comparer les articles, prix et disponibilités.</p><div class=\"shopping-model-grid\">"+models.slice(0,8).map(function(model,i){
     var query=[model,brands[0]||"",budget>0?"moins de "+budget+" euros":""].filter(Boolean).join(" ");
-    return "<article class=\"card shopping-model-card\"><img class=\"shopping-model-image\" loading=\"lazy\" src=\""+esc(photoFor(model))+"\" alt=\"Exemple d’inspiration pour "+esc(model)+"\" onerror=\"this.style.display='none'\"><div class=\"shopping-model-body\"><h3>"+esc(model)+"</h3><p class=\"muted\">"+(brands.length?"Marque préférée : "+esc(brands[0]):"Style : "+esc((p.styles||[]).join(", ")||"à personnaliser"))+(budget>0?" · budget indicatif : "+budget+" €":"")+"</p><div class=\"store-links\">"+stores.map(function(store){var q="site:"+store.domain+" "+query;return "<a class=\"store-link\" href=\"https://www.google.com/search?q="+encodeURIComponent(q)+"\" target=\"_blank\" rel=\"noopener noreferrer\">Voir sur "+esc(store.name)+" ↗</a>"}).join("")+"<a class=\"store-link store-link-all\" href=\"https://www.google.com/search?tbm=shop&q="+encodeURIComponent(query)+"\" target=\"_blank\" rel=\"noopener noreferrer\">Comparer les magasins ↗</a></div></div></article>";
+    return "<article class=\"card shopping-model-card\"><img decoding=\"async\" class=\"shopping-model-image\" loading=\"lazy\" src=\""+esc(photoFor(model))+"\" alt=\"Exemple d’inspiration pour "+esc(model)+"\" onerror=\"this.style.display='none'\"><div class=\"shopping-model-body\"><h3>"+esc(model)+"</h3><p class=\"muted\">"+(brands.length?"Marque préférée : "+esc(brands[0]):"Style : "+esc((p.styles||[]).join(", ")||"à personnaliser"))+(budget>0?" · budget indicatif : "+budget+" €":"")+"</p><div class=\"store-links\">"+stores.map(function(store){var q="site:"+store.domain+" "+query;return "<a class=\"store-link\" href=\"https://www.google.com/search?q="+encodeURIComponent(q)+"\" target=\"_blank\" rel=\"noopener noreferrer\">Voir sur "+esc(store.name)+" ↗</a>"}).join("")+"<a class=\"store-link store-link-all\" href=\"https://www.google.com/search?tbm=shop&q="+encodeURIComponent(query)+"\" target=\"_blank\" rel=\"noopener noreferrer\">Comparer les magasins ↗</a></div></div></article>";
   }).join("")+"</div><p class=\"muted\">Les photos sont des exemples d’inspiration, pas une garantie que le produit exact est en vente.</p></div>";
 }
 function recommendationReasons(item,p){
@@ -1134,7 +1135,7 @@ function loadCelebrityLooks(){
       var dateText=!isNaN(date.getTime())&&date.getTime()>0?date.toLocaleDateString("fr-FR",{day:"numeric",month:"short",year:"numeric"}):"Date non fournie";
       var source=item.attribution&&item.attribution.publisher||item.source&&item.source.name||item.publisher||"Source de l’article";
       var image=articleImage(item);
-      return '<article class="celebrity-news-item">'+(safeImage(image)?'<img class="celebrity-news-image" loading="lazy" src="'+esc(image)+'" alt="Illustration de l’article" referrerpolicy="no-referrer">':'')+'<p>'+esc(item.title||"Actualité mode")+'</p><small>'+esc(source)+' · '+esc(dateText)+'</small><p><a href="'+esc(safeExternalUrl(item.url))+'" target="_blank" rel="noopener noreferrer">Lire l’article ↗</a></p></article>';
+      return '<article class="celebrity-news-item">'+(safeImage(image)?'<img decoding=\"async\" class="celebrity-news-image" loading="lazy" src="'+esc(image)+'" alt="Illustration de l’article" referrerpolicy="no-referrer">':'')+'<p>'+esc(item.title||"Actualité mode")+'</p><small>'+esc(source)+' · '+esc(dateText)+'</small><p><a href="'+esc(safeExternalUrl(item.url))+'" target="_blank" rel="noopener noreferrer">Lire l’article ↗</a></p></article>';
     }).join("");
   }
   celebs.forEach(function(c,i){
@@ -1146,7 +1147,7 @@ function loadCelebrityLooks(){
         .then(function(data){
           var thumb=data.thumbnail&&data.thumbnail.source;
           if(!safeImage(thumb))throw new Error("Aucun portrait adapté");
-          photosBox.innerHTML='<figure class="celebrity-photo celebrity-profile-photo"><img loading="lazy" src="'+esc(thumb)+'" alt="Portrait de '+esc(c.name)+'" referrerpolicy="no-referrer"><figcaption>Portrait de référence · <a href="'+esc(data.content_urls&&data.content_urls.desktop&&data.content_urls.desktop.page||"https://en.wikipedia.org/wiki/"+slug)+'" target="_blank" rel="noopener noreferrer">Source encyclopédique ↗</a></figcaption></figure><p class="celebrity-source-note">Portrait de la personne, pas nécessairement une tenue récente.</p>';
+          photosBox.innerHTML='<figure class="celebrity-photo celebrity-profile-photo"><img decoding=\"async\" loading="lazy" src="'+esc(thumb)+'" alt="Portrait de '+esc(c.name)+'" referrerpolicy="no-referrer"><figcaption>Portrait de référence · <a href="'+esc(data.content_urls&&data.content_urls.desktop&&data.content_urls.desktop.page||"https://en.wikipedia.org/wiki/"+slug)+'" target="_blank" rel="noopener noreferrer">Source encyclopédique ↗</a></figcaption></figure><p class="celebrity-source-note">Portrait de la personne, pas nécessairement une tenue récente.</p>';
         }).catch(function(){photosBox.innerHTML='<p class="muted">Portrait indisponible pour le moment.</p>'});
     }
     if(newsBox){
@@ -1445,19 +1446,60 @@ function smartWeather(){
     box.innerHTML='Météo indisponible pour '+esc(city)+'. Vérifie le pays sélectionné et l’orthographe du nom. <button class="ghost" onclick="location.reload()">Réessayer</button>';
   });
 }
-function getColorHarmony(){
+function hexToHsl(hex){
+  var value=String(hex||"#2563eb").replace("#","");
+  var r=parseInt(value.slice(0,2),16)/255,g=parseInt(value.slice(2,4),16)/255,b=parseInt(value.slice(4,6),16)/255;
+  var max=Math.max(r,g,b),min=Math.min(r,g,b),h=0,s=0,l=(max+min)/2;
+  if(max!==min){var d=max-min;s=l>.5?d/(2-max-min):d/(max+min);switch(max){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;default:h=(r-g)/d+4;break;}h*=60;}
+  return {h:h,s:s*100,l:l*100};
+}
+function hslToHex(h,s,l){
+  h=((h%360)+360)%360;s=Math.max(0,Math.min(100,s))/100;l=Math.max(0,Math.min(100,l))/100;
+  var c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2,r=0,g=0,b=0;
+  if(h<60){r=c;g=x}else if(h<120){r=x;g=c}else if(h<180){g=c;b=x}else if(h<240){g=x;b=c}else if(h<300){r=x;b=c}else{r=c;b=x}
+  return "#"+[r,g,b].map(v=>Math.round((v+m)*255).toString(16).padStart(2,"0")).join("").toUpperCase();
+}
+function getColorHarmony(scheme){
   var box=$("harmonyResults");if(!box)return;
   var chosen=db.palette[0]||((db.items.find(function(x){return x.color&&x.color!=="Autre"})||{}).color)||"Bleu";
-  var hex=(HEX[chosen]||HEX.Bleu).replace("#","");
-  box.innerHTML="<p class=\"muted\">Recherche de couleurs coordonnées…</p>";
-  fetch("https://www.thecolorapi.com/scheme?hex="+encodeURIComponent(hex)+"&mode=analogic&count=6&format=json")
-    .then(function(r){if(!r.ok)throw new Error("API couleurs indisponible");return r.json()})
-    .then(function(data){
-      var colors=data.colors||[];
-      if(!colors.length)throw new Error("Aucune couleur reçue");
-      box.innerHTML="<p>Harmonie basée sur <b>"+esc(chosen)+"</b> — palette analogique suggérée par The Color API.</p><div class=\"harmony-swatches\">"+colors.map(function(c){return "<div title=\""+esc(c.name&&c.name.value||c.hex.value)+"\"><i style=\"background:"+esc(c.hex.value)+"\"></i><b>"+esc(c.hex.value)+"</b><small>"+esc(c.name&&c.name.value||"Couleur")+"</small></div>"}).join("")+"</div><small>Les harmonies sont des suggestions de couleurs, pas une analyse de colorimétrie personnelle.</small>";
-    }).catch(function(){box.textContent="Service de couleurs indisponible. Tu peux toujours utiliser tes couleurs enregistrées."});
+  var base=HEX[chosen]||chosen||HEX.Bleu,hsl=hexToHsl(base),mode=scheme||"analogic",colors=[];
+  if(mode==="complementary")colors=[{hex:base,label:"Couleur de départ"},{hex:hslToHex(hsl.h+180,hsl.s,hsl.l),label:"Complémentaire"}];
+  else if(mode==="monochrome")colors=[{hex:hslToHex(hsl.h,hsl.s,Math.max(12,hsl.l-28)),label:"Foncée"},{hex:hslToHex(hsl.h,hsl.s,Math.max(22,hsl.l-12)),label:"Soutenue"},{hex:base,label:"Départ"},{hex:hslToHex(hsl.h,Math.max(15,hsl.s-12),Math.min(88,hsl.l+16)),label:"Claire"},{hex:hslToHex(hsl.h,Math.max(10,hsl.s-25),Math.min(96,hsl.l+30)),label:"Très claire"}];
+  else{colors=[{hex:hslToHex(hsl.h-30,hsl.s,hsl.l),label:"Voisine"},{hex:hslToHex(hsl.h-15,hsl.s,hsl.l),label:"Proche"},{hex:base,label:"Départ"},{hex:hslToHex(hsl.h+15,hsl.s,hsl.l),label:"Proche"},{hex:hslToHex(hsl.h+30,hsl.s,hsl.l),label:"Voisine"}];mode="analogic";}
+  var labels={analogic:"Analogique",complementary:"Complémentaire",monochrome:"Monochrome"};
+  box.innerHTML="<p>Harmonie <b>"+labels[mode]+"</b> à partir de <b>"+esc(chosen)+"</b>. Calcul effectué dans ton navigateur.</p><div class=\"harmony-swatches\">"+colors.map(function(c){return "<div title=\""+esc(c.label)+"\"><i style=\"background:"+esc(c.hex)+"\"></i><b>"+esc(c.hex)+"</b><small>"+esc(c.label)+"</small><button class=\"ghost\" type=\"button\" data-action=\"copyHex\" data-hex=\""+esc(c.hex)+"\">Copier HEX</button></div>"}).join("")+"</div><small>Suggestions visuelles uniquement : elles ne déterminent pas une saison de colorimétrie personnelle.</small>";
 }
+function localDateString(date){return date.getFullYear()+"-"+String(date.getMonth()+1).padStart(2,"0")+"-"+String(date.getDate()).padStart(2,"0");}
+function tripCalendarNotes(start,end){
+  var notes=[],cursor=new Date(start+"T12:00:00"),last=new Date(end+"T12:00:00");
+  if(!start||!end||isNaN(cursor)||isNaN(last)||cursor>last)return notes;
+  for(var count=0;cursor<=last&&count<90;count++,cursor.setDate(cursor.getDate()+1)){var key=localDateString(cursor),note=db.calendar[key];if(note)notes.push({date:key,note:String(note)});}
+  return notes;
+}
+function valisePage(){
+  var plans=Array.isArray(db.settings.travelPlans)?db.settings.travelPlans:[],today=localDateString(new Date()),later=new Date();later.setDate(later.getDate()+3);
+  var cards=plans.length?plans.map(function(plan){
+    var names=(plan.itemIds||[]).map(function(id){return db.items.find(function(item){return item.id===id})}).filter(Boolean),notes=Array.isArray(plan.calendarNotes)?plan.calendarNotes:[];
+    return "<article class=\"card trip-card\"><div class=\"sectionhead\"><div><h2>"+esc(plan.title||"Voyage sans titre")+"</h2><p class=\"muted\">"+esc(plan.destination||"Destination à préciser")+" · "+esc(plan.startDate||"")+" → "+esc(plan.endDate||"")+"</p></div><button class=\"danger\" type=\"button\" data-action=\"removeTrip\" data-id=\""+esc(plan.id)+"\">Supprimer</button></div><p><b>"+names.length+"</b> vêtement"+(names.length>1?"s":"")+" dans la valise</p><div class=\"trip-garments\">"+(names.length?names.map(function(item){return "<span class=\"tag\">"+esc(item.name)+"</span>"}).join(""):"<p class=\"muted\">Aucun vêtement sélectionné ou certains articles ont été retirés du dressing.</p>")+"</div>"+(notes.length?"<h3>Notes du calendrier pendant le voyage</h3><ul>"+notes.map(function(n){return "<li><b>"+esc(n.date)+"</b> — "+esc(n.note)+"</li>"}).join("")+"</ul>":"<p class=\"muted\">Aucune tenue n’est notée au calendrier sur ces dates.</p>")+"</article>";
+  }).join(""):"<div class=\"empty\">Aucun voyage préparé pour le moment. Crée une valise ci-dessus.</div>";
+  return "<div class=\"section\"><span class=\"eyebrow\">PRÉPARATION DE VOYAGE</span><h1>Valise connectée</h1><p class=\"muted\">Prépare les vêtements à emporter et retrouve les tenues déjà inscrites au calendrier. Tes plans sont enregistrés dans tes données CLOSETIA locales et suivent la synchronisation existante si elle est activée.</p><form id=\"tripForm\" class=\"card trip-form\"><h2>Nouveau voyage</h2><div class=\"trip-fields\"><label>Nom du voyage<input id=\"tripTitle\" maxlength=\"80\" placeholder=\"Ex. Week-end à Lyon\" required></label><label>Destination<input id=\"tripDestination\" maxlength=\"100\" placeholder=\"Ville ou région\" required></label><label>Départ<input id=\"tripStart\" type=\"date\" value=\""+today+"\" required></label><label>Retour<input id=\"tripEnd\" type=\"date\" value=\""+localDateString(later)+"\" required></label></div><h3>Vêtements à emporter</h3><p class=\"muted\">Coche les pièces de ton dressing à inclure dans cette valise.</p><div class=\"trip-item-list\">"+(db.items.length?db.items.map(function(item){return "<label class=\"choice trip-item\"><input type=\"checkbox\" name=\"tripItem\" value=\""+esc(item.id)+"\"><span>"+esc(item.name)+"</span><small>"+esc(item.category)+" · "+esc(item.color)+"</small></label>"}).join(""):"<p class=\"muted\">Ajoute d’abord des vêtements dans ton dressing.</p>")+"</div><p class=\"muted\">Les notes de tenue enregistrées au calendrier entre le départ et le retour seront associées au voyage.</p><button class=\"primary\" type=\"submit\">Enregistrer la valise</button><p id=\"tripMessage\" class=\"muted\" role=\"status\" aria-live=\"polite\"></p></form><div class=\"trip-list\"><h2>Mes voyages</h2>"+cards+"</div></div>";
+}
+function saveTrip(event){
+  event.preventDefault();
+  var title=$("tripTitle").value.trim(),destination=$("tripDestination").value.trim(),start=$("tripStart").value,end=$("tripEnd").value,message=$("tripMessage");
+  if(!title||!destination||!start||!end){if(message)message.textContent="Complète le nom, la destination et les dates.";return;}
+  if(end<start){if(message)message.textContent="La date de retour doit être égale ou postérieure à la date de départ.";return;}
+  var itemIds=Array.from(document.querySelectorAll('input[name="tripItem"]:checked')).map(function(input){return input.value});
+  var plan={id:makeId(),title:title,destination:destination,startDate:start,endDate:end,itemIds:itemIds,calendarNotes:tripCalendarNotes(start,end),createdAt:new Date().toISOString()};
+  db.settings.travelPlans=Array.isArray(db.settings.travelPlans)?db.settings.travelPlans:[];
+  db.settings.travelPlans.unshift(plan);
+  if(save())render();else db.settings.travelPlans=db.settings.travelPlans.filter(function(x){return x.id!==plan.id});
+}
+function removeTrip(id){
+  if(!confirm("Supprimer cette valise ? Les vêtements de ton dressing ne seront pas supprimés."))return;
+  db.settings.travelPlans=(db.settings.travelPlans||[]).filter(function(plan){return plan.id!==id});save();
+}
+
 function home(){
   return `
     <div class="hero">
@@ -1476,7 +1518,7 @@ function home(){
       <a class="card feature" href="#/tenues"><b>✨ Tenues</b><span>${db.outfits.length} tenue${db.outfits.length>1?"s":""} · générateur</span></a>
       <a class="card feature" href="#/wishlist"><b>♡ Liste d’envies</b><span>${(db.settings.wishlist||[]).length} article${(db.settings.wishlist||[]).length>1?"s":""} à garder en mémoire</span></a>
       <a class="card feature" href="#/palette"><b>🎨 Couleurs</b><span>Répartition et préférences</span></a>
-      <a class="card feature" href="#/calendrier"><b>📅 Calendrier</b><span>Planifier les tenues</span></a><a class="card feature" href="#/profil"><b>🧭 Mon style</b><span>Questionnaire · marques · budget</span></a><a class="card feature" href="#/colorimetrie"><b>🎨 Colorimétrie</b><span>Photo + préférences couleurs</span></a><a class="card feature" href="#/star"><b>⭐ Outfit Star</b><span>Recommandations personnalisées</span></a><a class="card feature" href="#/amis"><b>👥 Amis</b><span>Préparer le partage de tenues</span></a>
+      <a class="card feature" href="#/calendrier"><b>📅 Calendrier</b><span>Planifier les tenues</span></a><a class="card feature" href="#/valise"><b>🧳 Valise connectée</b><span>Préparer les vêtements selon les dates du voyage</span></a><a class="card feature" href="#/profil"><b>🧭 Mon style</b><span>Questionnaire · marques · budget</span></a><a class="card feature" href="#/colorimetrie"><b>🎨 Colorimétrie</b><span>Photo + préférences couleurs</span></a><a class="card feature" href="#/star"><b>⭐ Outfit Star</b><span>Recommandations personnalisées</span></a><a class="card feature" href="#/amis"><b>👥 Amis</b><span>Préparer le partage de tenues</span></a>
     </div>`;
 }
 
@@ -1517,7 +1559,7 @@ function outfits(){
     return `
       <article class="card outfit">
         <div class="sectionhead"><div><h3>${esc(o.name)}</h3><span class="tag">${esc(o.occasion)}</span></div><button class="danger" data-action="deleteOutfit" data-id="${o.id}">Supprimer</button></div>
-        <div class="mini">${items.map(x=>`<div>${x.image?`<img src="${esc(x.image)}" alt="">`:""}<small>${esc(x.name)}</small></div>`).join("")}</div>
+        <div class="mini">${items.map(x=>`<div>${x.image?`<img loading="lazy" decoding=\"async\" src="${esc(x.image)}" alt="">`:""}<small>${esc(x.name)}</small></div>`).join("")}</div>
       </article>`;
   }).join("");
   return `
@@ -1539,7 +1581,7 @@ function palette(){
         const p=total ? n/total*100 : 0;
         return `<div class="colorline"><i class="swatch" style="background:${HEX[c]}"></i><b>${c}</b><span>${n}</span><div class="bar"><i style="width:${p}%"></i></div></div>`;
       }).join("")}</div>
-      <div class="card" style="margin-top:15px"><h2>Harmonies de couleurs</h2><p class="muted">Génère une palette coordonnée depuis ta première couleur favorite ou une couleur de ton dressing.</p><button class="primary" data-action="colorHarmony">Trouver une harmonie</button><div id="harmonyResults" style="margin-top:12px"></div></div><div class="card" style="margin-top:15px"><h2>Mes couleurs préférées</h2><p class="muted">Clique pour les enregistrer.</p><div class="actions">${COLORS.filter(c=>c!=="Autre").map(c=>`<button class="swatch" title="${c}" style="background:${HEX[c]};outline:${db.palette.includes(c)?"3px solid var(--purple)":"none"}" data-action="palette" data-color="${c}"></button>`).join("")}</div></div>
+      <div class="card" style="margin-top:15px"><h2>Harmonies de couleurs</h2><p class="muted">Choisis une harmonie calculée localement depuis ta première couleur favorite ou une couleur de ton dressing.</p><div class="actions"><button class="primary" data-action="colorHarmony" data-scheme="analogic">Analogique</button><button class="ghost" data-action="colorHarmony" data-scheme="complementary">Complémentaire</button><button class="ghost" data-action="colorHarmony" data-scheme="monochrome">Monochrome</button></div><div id="harmonyResults" style="margin-top:12px" aria-live="polite"></div></div><div class="card" style="margin-top:15px"><h2>Mes couleurs préférées</h2><p class="muted">Clique pour les enregistrer.</p><div class="actions">${COLORS.filter(c=>c!=="Autre").map(c=>`<button class="swatch" title="${c}" style="background:${HEX[c]};outline:${db.palette.includes(c)?"3px solid var(--purple)":"none"}" data-action="palette" data-color="${c}"></button>`).join("")}</div></div>
     </div>`;
 }
 
@@ -1682,7 +1724,7 @@ function render(){
   const selectionEnd=active&&typeof active.selectionEnd==="number"?active.selectionEnd:null;
   document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("active",a.getAttribute("href")==="#/"+page));
   try{
-    app.innerHTML=page==="connexions"?connectionsPage():page==="dressing"?dressing():page==="tenues"?outfits():page==="wishlist"?wishlistPage():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="stars"?celebrityLooksPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="stats"?stats():page==="memes"?sameClothesPage():page==="admin"?adminUnavailablePage():home();
+    app.innerHTML=page==="connexions"?connectionsPage():page==="dressing"?dressing():page==="tenues"?outfits():page==="wishlist"?wishlistPage():page==="palette"?palette():page==="profil"?profilePage():page==="colorimetrie"?colorimetryPage():page==="star"?starPage():page==="stars"?celebrityLooksPage():page==="amis"?friendsPage():page==="calendrier"?calendar():page==="valise"?valisePage():page==="stats"?stats():page==="memes"?sameClothesPage():page==="admin"?adminUnavailablePage():home();
     bindPage();
     if(page==="stars") setTimeout(loadCelebrityLooks,0);
     if(activeId){
@@ -1719,7 +1761,7 @@ function bindPage(){
       else if(action==="generate") generateOutfit();
       else if(action==="reproduceCelebrity") reproduceCelebrityLook(el.dataset.id); else if(action==="addLookItem") addLookItem(); else if(action==="removeLookItem") removeLookItem(itemId); else if(action==="findLookItem") findLookItem(itemId);
       else if(action==="deleteOutfit") deleteOutfit(itemId);
-      else if(action==="palette") togglePalette(el.dataset.color); else if(action==="colorHarmony") getColorHarmony();
+      else if(action==="palette") togglePalette(el.dataset.color); else if(action==="colorHarmony") getColorHarmony(el.dataset.scheme); else if(action==="removeTrip") removeTrip(itemId);
       else if(action==="colorimetryColor") toggleColorimetryColor(el.dataset.color);
       else if(action==="copyHex") copyHex(el.dataset.hex);
       else if(action==="clearPhotoPalette"){db.settings.colorimetry=db.settings.colorimetry||{};db.settings.colorimetry.palette=[];db.settings.colorimetry.status="Palette effacée";save();}
@@ -1729,6 +1771,7 @@ function bindPage(){
     });
   });
   if($("wishlistForm")) $("wishlistForm").addEventListener("submit",event=>{event.preventDefault();addWishlistItem();});
+  if($("tripForm")) $("tripForm").addEventListener("submit",saveTrip);
   if($("friendForm")) $("friendForm").addEventListener("submit",event=>{event.preventDefault();addFriend();});
   if($("accountRegisterForm")) $("accountRegisterForm").addEventListener("submit",event=>submitAccountForm(event,"register"));
   if($("accountLoginForm")) $("accountLoginForm").addEventListener("submit",event=>submitAccountForm(event,"login"));
