@@ -910,7 +910,10 @@ function colorimetryPage(){
   var c=db.settings.colorimetry||{palette:[],status:"Non définie",selectedColors:[]};
   var palette=Array.isArray(c.palette)?c.palette:[];
   var selected=Array.isArray(c.selectedColors)?c.selectedColors:[];
-  return "<div class=\"section\"><span class=\"eyebrow\">COULEURS PERSONNALISÉES</span><h1>Colorimétrie</h1><p class=\"muted\">Cette page aide à explorer les couleurs. Une photo seule ne permet pas de déterminer de façon fiable une saison de colorimétrie personnelle.</p><div class=\"card\"><h2>Extraction de palette depuis une photo</h2><p class=\"muted\">Les échantillons représentent les couleurs dominantes détectées dans l’image, pas un diagnostic personnel. Les couleurs peuvent varier selon la lumière et l’écran.</p><label for=\"colorPhoto\">Choisir une photo</label><input id=\"colorPhoto\" type=\"file\" accept=\"image/*\"><div class=\"photoPalette\">"+palette.map(function(x){var hex=paletteHex(x);return "<div class=\"palette-sample\"><i style=\"background:"+esc(hex)+"\"></i><code>"+esc(hex)+"</code><button class=\"ghost\" type=\"button\" data-action=\"copyHex\" data-hex=\""+esc(hex)+"\">Copier HEX</button></div>"}).join("")+"</div><p class=\"muted\">"+esc(c.status||"Aucune palette extraite pour le moment.")+"</p><button class=\"ghost\" type=\"button\" data-action=\"clearPhotoPalette\">Effacer la palette extraite</button></div><div class=\"card\" style=\"margin-top:15px\"><h2>Mes couleurs appréciées</h2><p class=\"muted\">Sélectionne les couleurs que tu aimes porter. Ce questionnaire mémorise tes préférences, sans prétendre analyser ton sous-ton ou ta saison.</p><div class=\"actions\">"+COLORS.filter(function(x){return x!=="Autre"}).map(function(x){return "<button type=\"button\" class=\"colorchoice "+(selected.includes(x)?"selected":"")+"\" aria-pressed=\""+selected.includes(x)+"\" data-action=\"colorimetryColor\" data-color=\""+x+"\"><i class=\"swatch\" style=\"background:"+HEX[x]+"\"></i>"+x+"</button>"}).join("")+"</div><p class=\"muted\">"+selected.length+" couleur"+(selected.length>1?"s":"")+" sélectionnée"+(selected.length>1?"s":"")+".</p></div></div>";
+  var firstGarment=db.items.find(function(item){return item.color&&item.color!=="Autre"});
+  var firstColor=firstGarment?HEX[firstGarment.color]:(db.palette.length?HEX[db.palette[0]]:HEX.Bleu);
+  var colorOptions=COLORS.filter(function(color){return color!=="Autre"}).map(function(color){return "<option value=\""+HEX[color]+"\""+(HEX[color]===firstColor?" selected":"")+">"+color+"</option>"}).join("");
+  return "<div class=\"section\"><span class=\"eyebrow\">COULEURS PERSONNALISÉES</span><h1>Colorimétrie</h1><p class=\"muted\">Explore les harmonies de couleurs pour tes vêtements. Les suggestions sont calculées dans ton navigateur et ne constituent pas un diagnostic de colorimétrie personnelle.</p><div class=\"card harmony-lab\"><h2>Atelier d’harmonies</h2><p class=\"muted\">Choisis une couleur de départ, ou précise exactement une teinte avec le sélecteur. CLOSETIA calcule trois familles d’associations et repère les vêtements de ton dressing qui peuvent s’en rapprocher.</p><div class=\"harmony-picker-grid\"><div><label for=\"harmonyBase\">Couleur de départ</label><select id=\"harmonyBase\">"+colorOptions+"</select></div><div><label for=\"harmonyCustom\">Ou choisir une teinte personnalisée</label><input id=\"harmonyCustom\" type=\"color\" value=\""+esc(firstColor||HEX.Bleu)+"\" aria-label=\"Teinte personnalisée\" /></div></div><div class=\"chromatic-wheel\" role=\"img\" aria-label=\"Roue chromatique illustrative : les couleurs sont réparties selon leur teinte\"><span></span></div><div class=\"actions harmony-actions\"><button class=\"primary\" type=\"button\" data-action=\"colorHarmony\" data-scheme=\"monochrome\">Monochrome</button><button class=\"ghost\" type=\"button\" data-action=\"colorHarmony\" data-scheme=\"analogic\">Analogue</button><button class=\"ghost\" type=\"button\" data-action=\"colorHarmony\" data-scheme=\"complementary\">Complémentaire</button></div><div id=\"harmonyResults\" class=\"harmony-results\" aria-live=\"polite\"><p class=\"muted\">Choisis une harmonie pour afficher les couleurs et les vêtements associés.</p></div></div><div class=\"card\" style=\"margin-top:15px\"><h2>Extraction de palette depuis une photo</h2><p class=\"muted\">Les échantillons représentent les couleurs dominantes détectées dans l’image, pas un diagnostic personnel. La photo est traitée localement dans ton navigateur.</p><label for=\"colorPhoto\">Choisir une photo</label><input id=\"colorPhoto\" type=\"file\" accept=\"image/*\"><div class=\"photoPalette\">"+palette.map(function(x){var hex=paletteHex(x);return "<div class=\"palette-sample\"><i style=\"background:"+esc(hex)+"\"></i><code>"+esc(hex)+"</code><button class=\"ghost\" type=\"button\" data-action=\"copyHex\" data-hex=\""+esc(hex)+"\">Copier HEX</button></div>"}).join("")+"</div><p class=\"muted\">"+esc(c.status||"Aucune palette extraite pour le moment.")+"</p><button class=\"ghost\" type=\"button\" data-action=\"clearPhotoPalette\">Effacer la palette extraite</button></div><div class=\"card\" style=\"margin-top:15px\"><h2>Mes couleurs appréciées</h2><p class=\"muted\">Sélectionne les couleurs que tu aimes porter. Ce questionnaire mémorise tes préférences, sans prétendre analyser ton sous-ton ou ta saison.</p><div class=\"actions\">"+COLORS.filter(function(x){return x!=="Autre"}).map(function(x){return "<button type=\"button\" class=\"colorchoice "+(selected.includes(x)?"selected":"")+"\" aria-pressed=\""+selected.includes(x)+"\" data-action=\"colorimetryColor\" data-color=\""+x+"\"><i class=\"swatch\" style=\"background:"+HEX[x]+"\"></i>"+x+"</button>"}).join("")+"</div><p class=\"muted\">"+selected.length+" couleur"+(selected.length>1?"s":"")+" sélectionnée"+(selected.length>1?"s":"")+".</p></div></div>";
 }
 function paletteHex(value){
   var s=String(value||"").trim();
@@ -1461,13 +1464,27 @@ function hslToHex(h,s,l){
 }
 function getColorHarmony(scheme){
   var box=$("harmonyResults");if(!box)return;
-  var chosen=db.palette[0]||((db.items.find(function(x){return x.color&&x.color!=="Autre"})||{}).color)||"Bleu";
-  var base=HEX[chosen]||chosen||HEX.Bleu,hsl=hexToHsl(base),mode=scheme||"analogic",colors=[];
+  var selector=$("harmonyBase"),custom=$("harmonyCustom");
+  var chosen=selector&&selector.value?selector.value:(db.palette[0]||((db.items.find(function(x){return x.color&&x.color!=="Autre"})||{}).color)||"Bleu");
+  if(custom&&custom.value&&custom.dataset.active==="true")chosen=custom.value;
+  var base=/^#[0-9a-f]{6}$/i.test(String(chosen))?String(chosen).toUpperCase():(HEX[chosen]||HEX.Bleu);
+  var hsl=hexToHsl(base),mode=scheme||"analogic",colors=[];
   if(mode==="complementary")colors=[{hex:base,label:"Couleur de départ"},{hex:hslToHex(hsl.h+180,hsl.s,hsl.l),label:"Complémentaire"}];
   else if(mode==="monochrome")colors=[{hex:hslToHex(hsl.h,hsl.s,Math.max(12,hsl.l-28)),label:"Foncée"},{hex:hslToHex(hsl.h,hsl.s,Math.max(22,hsl.l-12)),label:"Soutenue"},{hex:base,label:"Départ"},{hex:hslToHex(hsl.h,Math.max(15,hsl.s-12),Math.min(88,hsl.l+16)),label:"Claire"},{hex:hslToHex(hsl.h,Math.max(10,hsl.s-25),Math.min(96,hsl.l+30)),label:"Très claire"}];
   else{colors=[{hex:hslToHex(hsl.h-30,hsl.s,hsl.l),label:"Voisine"},{hex:hslToHex(hsl.h-15,hsl.s,hsl.l),label:"Proche"},{hex:base,label:"Départ"},{hex:hslToHex(hsl.h+15,hsl.s,hsl.l),label:"Proche"},{hex:hslToHex(hsl.h+30,hsl.s,hsl.l),label:"Voisine"}];mode="analogic";}
-  var labels={analogic:"Analogique",complementary:"Complémentaire",monochrome:"Monochrome"};
-  box.innerHTML="<p>Harmonie <b>"+labels[mode]+"</b> à partir de <b>"+esc(chosen)+"</b>. Calcul effectué dans ton navigateur.</p><div class=\"harmony-swatches\">"+colors.map(function(c){return "<div title=\""+esc(c.label)+"\"><i style=\"background:"+esc(c.hex)+"\"></i><b>"+esc(c.hex)+"</b><small>"+esc(c.label)+"</small><button class=\"ghost\" type=\"button\" data-action=\"copyHex\" data-hex=\""+esc(c.hex)+"\">Copier HEX</button></div>"}).join("")+"</div><small>Suggestions visuelles uniquement : elles ne déterminent pas une saison de colorimétrie personnelle.</small>";
+  var labels={analogic:"Analogue",complementary:"Complémentaire",monochrome:"Monochrome"};
+  var targetHues=colors.map(function(color){return hexToHsl(color.hex).h;});
+  function hueDistance(a,b){var d=Math.abs(a-b)%360;return Math.min(d,360-d);}
+  var neutrals=["Noir","Blanc","Gris","Marron","Beige"];
+  var matches=db.items.filter(function(item){
+    if(!item.color||item.color==="Autre")return false;
+    if(neutrals.includes(item.color))return true;
+    var itemHex=HEX[item.color];if(!itemHex)return false;
+    var hue=hexToHsl(itemHex).h;
+    return targetHues.some(function(target){return hueDistance(hue,target)<=34;});
+  }).slice(0,12);
+  var matchHtml=matches.length?'<div class="harmony-matches"><h3>À essayer avec ton dressing</h3><div class="harmony-match-list">'+matches.map(function(item){return '<article><span class="swatch" style="background:'+esc(HEX[item.color]||"#cbd5e1")+'"></span><div><b>'+esc(item.name)+'</b><small>'+esc(item.color)+' · '+esc(item.category)+'</small></div></article>';}).join("")+'</div><p class="muted">Pistes basées sur la catégorie de couleur enregistrée pour chaque vêtement.</p></div>':'<p class="muted">Aucun vêtement ne correspond encore à ces familles de couleurs. Ajoute ou catégorise des vêtements dans ton dressing pour obtenir des suggestions.</p>';
+  box.innerHTML="<p>Harmonie <b>"+labels[mode]+"</b> calculée localement à partir de <b>"+esc(base)+"</b>.</p><div class=\"harmony-swatches\">"+colors.map(function(c){return "<div title=\""+esc(c.label)+"\"><i style=\"background:"+esc(c.hex)+"\"></i><b>"+esc(c.hex)+"</b><small>"+esc(c.label)+"</small><button class=\"ghost\" type=\"button\" data-action=\"copyHex\" data-hex=\""+esc(c.hex)+"\">Copier HEX</button></div>"}).join("")+"</div>"+matchHtml+"<small>Suggestions visuelles uniquement : elles ne déterminent pas une saison de colorimétrie personnelle.</small>";
 }
 function localDateString(date){return date.getFullYear()+"-"+String(date.getMonth()+1).padStart(2,"0")+"-"+String(date.getDate()).padStart(2,"0");}
 function tripCalendarNotes(start,end){
@@ -1773,7 +1790,7 @@ function bindPage(){
       else if(action==="generate") generateOutfit();
       else if(action==="reproduceCelebrity") reproduceCelebrityLook(el.dataset.id); else if(action==="addLookItem") addLookItem(); else if(action==="removeLookItem") removeLookItem(itemId); else if(action==="findLookItem") findLookItem(itemId);
       else if(action==="deleteOutfit") deleteOutfit(itemId);
-      else if(action==="palette") togglePalette(el.dataset.color); else if(action==="colorHarmony") getColorHarmony(el.dataset.scheme); else if(action==="removeTrip") removeTrip(itemId);
+      else if(action==="palette") togglePalette(el.dataset.color); else if(action==="colorHarmony"){var results=$("harmonyResults");if(results)results.dataset.scheme=el.dataset.scheme||"analogic";getColorHarmony(el.dataset.scheme);} else if(action==="removeTrip") removeTrip(itemId);
       else if(action==="colorimetryColor") toggleColorimetryColor(el.dataset.color);
       else if(action==="copyHex") copyHex(el.dataset.hex);
       else if(action==="clearPhotoPalette"){db.settings.colorimetry=db.settings.colorimetry||{};db.settings.colorimetry.palette=[];db.settings.colorimetry.status="Palette effacée";save();}
@@ -1792,6 +1809,8 @@ function bindPage(){
   if($("saveProfile")) $("saveProfile").onclick=saveProfileData;
   if($("profileCountry")) loadWeatherCountries();
   if($("colorPhoto")) $("colorPhoto").onchange=function(e){analyzeColorPhoto(e.target.files[0])};
+  if($("harmonyCustom")) $("harmonyCustom").addEventListener("input",function(e){e.target.dataset.active="true";if($("harmonyBase"))$("harmonyBase").value="";if($("harmonyResults").dataset.scheme)getColorHarmony($("harmonyResults").dataset.scheme);});
+  if($("harmonyBase")) $("harmonyBase").addEventListener("change",function(){if($("harmonyCustom"))$("harmonyCustom").dataset.active="false";if($("harmonyResults").dataset.scheme)getColorHarmony($("harmonyResults").dataset.scheme);});
   if(location.hash==="#/star"||location.hash==="#/"||location.hash==="#") setTimeout(smartWeather,50);
 }
 
