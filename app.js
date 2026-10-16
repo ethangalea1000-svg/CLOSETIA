@@ -784,7 +784,7 @@ function demo(){
 }
 
 function itemCard(item){
-  const image=item.image ? `<img src="${esc(item.image)}" alt="${esc(item.name)}">` : '<div class="empty">Pas de photo</div>';
+  const image=item.image ? `<img loading="lazy" decoding="async" src="${esc(item.image)}" alt="${esc(item.name)}">` : '<div class="empty">Pas de photo</div>';
   return `
     <article class="card item">
       <div class="photo">${image}<button class="heart ${item.favorite?"on":""}" data-action="favorite" data-id="${item.id}">${item.favorite?"♥":"♡"}</button></div>
@@ -965,14 +965,14 @@ function shoppingSuggestions(){
   var budget=Number(p.budget||0);
   var stores=[{name:"Zalando",domain:"zalando.fr"},{name:"Kiabi",domain:"kiabi.com"},{name:"H&M",domain:"hm.com"},{name:"Decathlon",domain:"decathlon.fr"}];
   var productPhotos={
-    "t-shirt":"https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=85",
-    "sweat":"https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&w=900&q=85",
-    "jean":"https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=900&q=85",
-    "veste":"https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=900&q=85",
-    "sneakers":"https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=85",
-    "chaussures":"https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=85",
-    "robe":"https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=900&q=85",
-    "sac":"https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=900&q=85"
+    "t-shirt":"https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=640&q=75",
+    "sweat":"https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&w=640&q=75",
+    "jean":"https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=640&q=75",
+    "veste":"https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=640&q=75",
+    "sneakers":"https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=640&q=75",
+    "chaussures":"https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=640&q=75",
+    "robe":"https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=640&q=75",
+    "sac":"https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=640&q=75"
   };
   function photoFor(model){
     var key=String(model).toLowerCase();
@@ -1517,7 +1517,7 @@ function outfits(){
     return `
       <article class="card outfit">
         <div class="sectionhead"><div><h3>${esc(o.name)}</h3><span class="tag">${esc(o.occasion)}</span></div><button class="danger" data-action="deleteOutfit" data-id="${o.id}">Supprimer</button></div>
-        <div class="mini">${items.map(x=>`<div>${x.image?`<img src="${esc(x.image)}" alt="">`:""}<small>${esc(x.name)}</small></div>`).join("")}</div>
+        <div class="mini">${items.map(x=>`<div>${x.image?`<img loading="lazy" decoding="async" src="${esc(x.image)}" alt="">`:""}<small>${esc(x.name)}</small></div>`).join("")}</div>
       </article>`;
   }).join("");
   return `
