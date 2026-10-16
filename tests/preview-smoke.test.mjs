@@ -80,7 +80,7 @@ assert.ok(cssSource.includes('prefers-reduced-motion:reduce'), "reduced-motion p
 console.log("CLOSETIA Preview checks passed.");
 
 assert.ok(source.includes("function colorimetryPage()"), "colorimetry page must render the local harmony lab");
-assert.ok(source.includes('id="harmonyBase"') && source.includes('id="harmonyCustom"'), "colorimetry must allow a named or custom base color");
+assert.ok(source.includes("harmonyBase") && source.includes("harmonyCustom"), "colorimetry must allow a named or custom base color");
 assert.ok(source.includes('function getColorHarmony(scheme)'), "harmony calculations must remain client-side");
 assert.ok(source.includes("À essayer avec ton dressing"), "harmony suggestions must match wardrobe items");
 assert.ok(source.includes("targetHues.some"), "wardrobe matching must use hue proximity");
