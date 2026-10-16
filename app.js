@@ -1706,9 +1706,21 @@ function connectionsPage(){
     '<section class="card connection-setup"><h2>Préparation nécessaire</h2><ul><li>Pour les liens e-mail : fournisseur d’envoi vérifié et secrets configurés dans Cloudflare Preview.</li><li>Pour Google, Facebook, X, Apple et LinkedIn : créer les applications OAuth, configurer les URL de rappel exactes, garder les secrets côté serveur et tester chaque flux avant activation.</li><li>Pour le QR : générer un jeton aléatoire à usage unique, avec expiration courte, confirmation sur l’appareil connecté et invalidation après usage.</li><li>Pour les passkeys : implémenter WebAuthn côté serveur, vérifier les défis et signatures, et stocker les clés publiques — jamais les empreintes ou le visage.</li><li>Pour chaque assistant IA : clé API serveur dédiée, permissions minimales et limites d’usage.</li></ul><p class="muted">Les clés secrètes ne doivent jamais être enregistrées dans le navigateur ni partagées dans le chat. La production et sa base D1 ne sont pas touchées.</p></section></div>';
 }
 
+function updatePrimaryNav(page){
+  document.querySelectorAll("#primaryNav a").forEach(link=>{
+    const href=link.getAttribute("href")||"";
+    const target=href==="#/"?"":href.startsWith("#/")?href.slice(2):null;
+    const active=target!==null && target===page;
+    link.classList.toggle("active",active);
+    if(active) link.setAttribute("aria-current","page");
+    else link.removeAttribute("aria-current");
+  });
+}
+
 function render(){
   const hash=location.hash || "#/";
   const page=hash.startsWith("#/") ? hash.slice(2) : "";
+  updatePrimaryNav(page);
   if(page==="admin" && !/\/(?:admin\.html|admin-panel\.html)$/i.test(location.pathname)){ location.replace("admin-panel.html#/admin"); return; }
   const app=$("app");
   if(!app) return;
