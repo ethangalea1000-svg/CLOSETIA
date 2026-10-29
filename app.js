@@ -255,9 +255,10 @@ function disconnectCloudflare(){
 
 function save(shouldRender=true){
   try{ localStorage.setItem(KEY,JSON.stringify(db)); }
-  catch(e){ alert("Impossible d'enregistrer les données locales. Vérifie l'espace disponible."); console.error(e); return; }
+  catch(e){ alert("Impossible d'enregistrer les données locales. Vérifie l'espace disponible."); console.error(e); return false; }
   queueCloudSync();
   if(shouldRender) render();
+  return true;
 }
 
 function esc(value){
@@ -336,6 +337,7 @@ function importJSON(file){
     try{
       const x=JSON.parse(reader.result);
       if(!Array.isArray(x.items)) throw new Error("items manquants");
+      const previousDb=db;
       const defaults=fresh();
       const incoming=x.settings && typeof x.settings==="object"?x.settings:{};
       db={
@@ -345,8 +347,8 @@ function importJSON(file){
         palette:Array.isArray(x.palette)?x.palette:[],
         settings:{...defaults.settings,...incoming,profile:{...defaults.settings.profile,...(incoming.profile||{})},colorimetry:{...defaults.settings.colorimetry,...(incoming.colorimetry||{})},friends:Array.isArray(incoming.friends)?incoming.friends:[],shared:Array.isArray(incoming.shared)?incoming.shared:[]}
       };
-      save();
-      alert("Dressing importé avec succès.");
+      if(save()) alert("Dressing importé avec succès.");
+      else db=previousDb;
     }catch(e){
       console.error(e);
       alert("Fichier CLOSETIA invalide.");
