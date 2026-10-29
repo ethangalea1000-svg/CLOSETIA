@@ -337,6 +337,7 @@ function importJSON(file){
     try{
       const x=JSON.parse(reader.result);
       if(!Array.isArray(x.items)) throw new Error("items manquants");
+      const previousDb=db;
       const defaults=fresh();
       const incoming=x.settings && typeof x.settings==="object"?x.settings:{};
       db={
@@ -347,6 +348,7 @@ function importJSON(file){
         settings:{...defaults.settings,...incoming,profile:{...defaults.settings.profile,...(incoming.profile||{})},colorimetry:{...defaults.settings.colorimetry,...(incoming.colorimetry||{})},friends:Array.isArray(incoming.friends)?incoming.friends:[],shared:Array.isArray(incoming.shared)?incoming.shared:[]}
       };
       if(save()) alert("Dressing importé avec succès.");
+      else db=previousDb;
     }catch(e){
       console.error(e);
       alert("Fichier CLOSETIA invalide.");
