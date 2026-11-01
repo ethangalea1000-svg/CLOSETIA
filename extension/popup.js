@@ -73,7 +73,7 @@ button.addEventListener("click", async () => {
       notes: [`Importé depuis : ${result.pageUrl}`, result.extra].filter(Boolean).join("\n"),
       image: /^https:\/\//i.test(result.image) ? result.image : ""
     };
-    const payload = { format: "CLOSETIA", version: 2, exportedAt: new Date().toISOString(), items: [item], outfits: [], calendar: {}, palette: [], settings: {} };
+    const payload = { format: "CLOSETIA-ITEMS", version: 1, exportedAt: new Date().toISOString(), entries: [item] };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     await chrome.downloads.download({ url, filename: "closetia-import.json", saveAs: true });
