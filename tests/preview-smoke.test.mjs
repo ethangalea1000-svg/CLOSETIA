@@ -86,3 +86,4 @@ assert.ok(source.includes("À essayer avec ton dressing"), "harmony suggestions 
 assert.ok(source.includes("targetHues.some"), "wardrobe matching must use hue proximity");
 assert.ok(htmlSource.includes('style.css?v=13') && htmlSource.includes('app.js?v=56'), "HTML asset versions must match the colorimetry release");
 assert.ok(workerSource.includes('closetia-v56'), "service worker cache must be bumped with the colorimetry release");
+import "./import-images.test.mjs";
