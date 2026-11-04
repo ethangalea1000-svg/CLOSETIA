@@ -1,4 +1,4 @@
-// Manual browser flow test (not run in CI: needs Chrome). Usage: node tests/import-flow.chrome.mjs
+// Browser flow test (needs Chrome; preinstalled on ubuntu-latest CI runners). Usage: node tests/import-flow.chrome.mjs
 // Uses a throwaway Chrome profile and a LOCAL copy of the app. The account session is simulated
 // in the page (only /api/accounts/me) so the dressing screen is visible; no real sign-in is bypassed.
 import assert from "node:assert/strict";
@@ -18,10 +18,19 @@ const server = http.createServer((req, res) => {
 await new Promise(r => server.listen(0, "127.0.0.1", r));
 const base = "http://127.0.0.1:" + server.address().port;
 const port = 9300 + Math.floor(Math.random() * 500);
-const chrome = spawn(process.env.CHROME || "google-chrome", ["--headless=new", "--no-sandbox", "--disable-gpu", "--remote-debugging-port=" + port, "--user-data-dir=" + mkdtempSync(path.join(tmpdir(), "closetia-")), "about:blank"], { stdio: "ignore" });
+const chrome = spawn(process.env.CHROME || "google-chrome", ["--headless=new", "--no-sandbox", "--disable-gpu", "--remote-debugging-port=" + port, "--user-data-dir=" + mkdtempSync(path.join(tmpdir(), "closetia-")), "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
+let chromeErr = "";
+chrome.stderr.on("data", d => { chromeErr += d; });
+let chromeSpawnError = null;
+chrome.on("error", e => { chromeSpawnError = e; });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-await sleep(3000);
-const tabs = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
+let tabs = null;
+for (let attempt = 0; attempt < 40 && !tabs; attempt++) {
+  if (chromeSpawnError) { chrome.kill(); throw new Error("Chrome introuvable ou non lançable : " + chromeSpawnError.message); }
+  try { tabs = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); }
+  catch { await sleep(500); }
+}
+if (!tabs) { chrome.kill(); throw new Error("Chrome n'a pas ouvert son port de debug en 20 s. stderr: " + chromeErr.slice(-800)); }
 const ws = new WebSocket(tabs.find(t => t.type === "page").webSocketDebuggerUrl);
 await new Promise(r => ws.onopen = r);
 let id = 0; const pending = {};
