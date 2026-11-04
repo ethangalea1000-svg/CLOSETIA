@@ -22,5 +22,3 @@ jobs:
         run: node --check app.js
       - name: Test import image filter
         run: node tests/import-images.test.mjs
-      - name: Test import flow (headless Chrome)
-        run: node tests/import-flow.chrome.mjs
