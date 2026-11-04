@@ -461,6 +461,23 @@ function chooseImportMode(itemOnly, count){
     document.body.appendChild(dialog);dialog.showModal();
   });
 }
+const SAFE_IMPORT_IMAGE_DATA=/^data:image\/(?:png|jpe?g|webp|gif|avif);base64,(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+function safeImportedImage(value){
+  if(value==null || value==="") return {image:"",rejected:false};
+  if(typeof value!=="string") return {image:"",rejected:true};
+  const v=value.trim();
+  if(SAFE_IMPORT_IMAGE_DATA.test(v)) return {image:v,rejected:false};
+  if(v.length<=2048 && /^https:\/\/[^\s"'<>]+$/i.test(v)) return {image:v,rejected:false};
+  return {image:"",rejected:true};
+}
+function dataImageDecodes(value){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>resolve(img.naturalWidth>0 && img.naturalHeight>0);
+    img.onerror=()=>resolve(false);
+    img.src=value;
+  });
+}
 function importJSON(file){
   if(!file) return;
   const reader=new FileReader();
@@ -471,11 +488,19 @@ function importJSON(file){
       if(x.format==="CLOSETIA-ITEMS" && !itemOnly) throw new Error("Version d'import inconnue");
       const records=itemOnly?x.entries:x.items;
       if(!Array.isArray(records) || records.some(item=>!item || typeof item!=="object" || Array.isArray(item))) throw new Error("Articles invalides");
+      // Validate images BEFORE any mutation; never drop photos silently.
+      const prepared=await Promise.all(records.map(async item=>{
+        const normalized=normalize(item);
+        let checked=safeImportedImage(normalized.image);
+        if(!checked.rejected && checked.image.startsWith("data:") && !(await dataImageDecodes(checked.image))) checked={image:"",rejected:true};
+        return {normalized,checked};
+      }));
+      const rejectedImages=prepared.filter(p=>p.checked.rejected).length;
       const mode=await chooseImportMode(itemOnly,records.length);
       if(!mode) return;
-      const importedItems=await Promise.all(records.map(async item=>{
-        const normalized=normalize(item);
-        normalized.image=await compressImageData(normalized.image,640,0.55);
+      if(rejectedImages && !window.confirm(rejectedImages+" image(s) de ce fichier ne sont pas acceptées (format non pris en charge, lien non sécurisé ou image illisible). Si tu continues, les articles concernés seront importés SANS photo. Ton fichier d'origine n'est pas modifié. Continuer ? (Annuler = rien n'est importé)")) return;
+      const importedItems=await Promise.all(prepared.map(async ({normalized,checked})=>{
+        normalized.image=await compressImageData(checked.image,640,0.55);
         return normalized;
       }));
       // Capture the latest state AFTER asynchronous reads/compression, not stale state at file selection.
