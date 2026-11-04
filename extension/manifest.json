@@ -1,1 +1,12 @@
-
+{
+  "manifest_version": 3,
+  "name": "Closetia Import",
+  "version": "0.1.0",
+  "description": "Prépare un fichier JSON compatible avec l'import de Closetia à partir de la page consultée. Aucune donnée n'est envoyée : tout reste dans le navigateur.",
+  "permissions": ["activeTab", "scripting", "downloads"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Exporter vers Closetia"
+  },
+  "icons": {}
+}
