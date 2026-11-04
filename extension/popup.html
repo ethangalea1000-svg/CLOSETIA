@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: system-ui, sans-serif; font-size: 13px; width: 280px; margin: 0; padding: 14px; background: #111827; color: #eef5fb; }
+  h1 { font-size: 14px; margin: 0 0 6px; }
+  p { color: #91a4b8; margin: 0 0 10px; line-height: 1.45; }
+  button { width: 100%; min-height: 38px; border: 1px solid #70ebd1; border-radius: 9px; background: #55e0c0; color: #0b2626; font-weight: 700; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  #status { margin-top: 10px; font-size: 12px; color: #91a4b8; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+  <h1>Closetia Import</h1>
+  <p>Lit les informations produit visibles sur cette page (nom, image, prix affiché) et télécharge un JSON à importer dans Closetia via « Importer JSON ». Rien n'est envoyé en ligne.</p>
+  <button id="extract">Préparer le fichier Closetia</button>
+  <div id="status" role="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
