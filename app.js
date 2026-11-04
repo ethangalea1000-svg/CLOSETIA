@@ -255,9 +255,10 @@ function disconnectCloudflare(){
 
 function save(shouldRender=true){
   try{ localStorage.setItem(KEY,JSON.stringify(db)); }
-  catch(e){ alert("Impossible d'enregistrer les données locales. Vérifie l'espace disponible."); console.error(e); return; }
+  catch(e){ alert("Impossible d'enregistrer les données locales. Vérifie l'espace disponible."); console.error(e); return false; }
   queueCloudSync();
   if(shouldRender) render();
+  return true;
 }
 
 function esc(value){
@@ -329,28 +330,114 @@ function exportCSV(){
   download("closetia-dressing.csv",csv,"text/csv;charset=utf-8");
 }
 
+function compressImageData(data, maxSide=640, quality=0.55){
+  if(typeof data!=="string" || !data.startsWith("data:image/") || data.length<45000) return Promise.resolve(data||"");
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const scale=Math.min(1,maxSide/Math.max(img.naturalWidth,img.naturalHeight));
+        const canvas=document.createElement("canvas");
+        canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
+        canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+        const ctx=canvas.getContext("2d");
+        if(!ctx) return resolve(data);
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        const compressed=canvas.toDataURL("image/jpeg",quality);
+        resolve(compressed.length<data.length?compressed:data);
+      }catch(e){console.warn("CLOSETIA image compression:",e);resolve(data)}
+    };
+    img.onerror=()=>resolve(data);
+    img.src=data;
+  });
+}
+
+// External item files deliberately use entries, not items: older apps reject them safely.
+function chooseImportMode(itemOnly, count){
+  return new Promise(resolve=>{
+    const dialog=document.createElement("dialog");
+    dialog.style.cssText="max-width:min(460px,calc(100vw - 32px));padding:24px;border-radius:16px;border:1px solid #bbb";
+    const title=document.createElement("h2");title.textContent="Importer "+count+" vêtement(s)";dialog.appendChild(title);
+    const text=document.createElement("p");text.textContent=itemOnly
+      ? "Ces articles seront ajoutés à ton dressing sans remplacer tes vêtements, tenues ou réglages."
+      : "Ajouter conserve ton dressing actuel. Restaurer remplace les données locales par cette sauvegarde : une copie du dressing actuel sera téléchargée avant la restauration.";
+    dialog.appendChild(text);
+    const finish=mode=>{dialog.close();dialog.remove();resolve(mode);};
+    for(const [label,mode] of [["Annuler",null],["Ajouter les articles","add"],...(!itemOnly?[["Restaurer cette sauvegarde","restore"]]:[])]){
+      const button=document.createElement("button");button.type="button";button.textContent=label;button.style.margin="6px";button.onclick=()=>finish(mode);dialog.appendChild(button);
+    }
+    dialog.addEventListener("cancel",event=>{event.preventDefault();finish(null);});
+    document.body.appendChild(dialog);dialog.showModal();
+  });
+}
+const SAFE_IMPORT_IMAGE_DATA=/^data:image\/(?:png|jpe?g|webp|gif|avif);base64,(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+function safeImportedImage(value){
+  if(value==null || value==="") return {image:"",rejected:false};
+  if(typeof value!=="string") return {image:"",rejected:true};
+  const v=value.trim();
+  if(SAFE_IMPORT_IMAGE_DATA.test(v)) return {image:v,rejected:false};
+  if(v.length<=2048 && /^https:\/\/[^\s"'<>]+$/i.test(v)) return {image:v,rejected:false};
+  return {image:"",rejected:true};
+}
+function dataImageDecodes(value){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>resolve(img.naturalWidth>0 && img.naturalHeight>0);
+    img.onerror=()=>resolve(false);
+    img.src=value;
+  });
+}
 function importJSON(file){
   if(!file) return;
   const reader=new FileReader();
-  reader.onload=()=>{
+  reader.onload=async()=>{
     try{
       const x=JSON.parse(reader.result);
-      if(!Array.isArray(x.items)) throw new Error("items manquants");
-      const defaults=fresh();
-      const incoming=x.settings && typeof x.settings==="object"?x.settings:{};
-      db={
-        items:x.items.map(normalize),
-        outfits:Array.isArray(x.outfits)?x.outfits:[],
-        calendar:x.calendar && typeof x.calendar==="object"?x.calendar:{},
-        palette:Array.isArray(x.palette)?x.palette:[],
-        settings:{...defaults.settings,...incoming,profile:{...defaults.settings.profile,...(incoming.profile||{})},colorimetry:{...defaults.settings.colorimetry,...(incoming.colorimetry||{})},friends:Array.isArray(incoming.friends)?incoming.friends:[],shared:Array.isArray(incoming.shared)?incoming.shared:[]}
-      };
-      save();
-      alert("Dressing importé avec succès.");
-    }catch(e){
-      console.error(e);
-      alert("Fichier CLOSETIA invalide.");
-    }
+      const itemOnly=x.format==="CLOSETIA-ITEMS" && x.version===1;
+      if(x.format==="CLOSETIA-ITEMS" && !itemOnly) throw new Error("Version d'import inconnue");
+      const records=itemOnly?x.entries:x.items;
+      if(!Array.isArray(records) || records.some(item=>!item || typeof item!=="object" || Array.isArray(item))) throw new Error("Articles invalides");
+      // Validate images BEFORE any mutation; never drop photos silently.
+      const prepared=await Promise.all(records.map(async item=>{
+        const normalized=normalize(item);
+        let checked=safeImportedImage(normalized.image);
+        if(!checked.rejected && checked.image.startsWith("data:") && !(await dataImageDecodes(checked.image))) checked={image:"",rejected:true};
+        return {normalized,checked};
+      }));
+      const rejectedImages=prepared.filter(p=>p.checked.rejected).length;
+      const mode=await chooseImportMode(itemOnly,records.length);
+      if(!mode) return;
+      if(rejectedImages && !window.confirm(rejectedImages+" image(s) de ce fichier ne sont pas acceptées (format non pris en charge, lien non sécurisé ou image illisible). Si tu continues, les articles concernés seront importés SANS photo. Ton fichier d'origine n'est pas modifié. Continuer ? (Annuler = rien n'est importé)")) return;
+      const importedItems=await Promise.all(prepared.map(async ({normalized,checked})=>{
+        normalized.image=await compressImageData(checked.image,640,0.55);
+        return normalized;
+      }));
+      // Capture the latest state AFTER asynchronous reads/compression, not stale state at file selection.
+      const previousDb=db;
+      let candidate;
+      if(mode==="add"){
+        const ids=new Set(previousDb.items.map(item=>item.id));
+        const additions=importedItems.map(item=>{
+          if(ids.has(item.id)) item.id=makeId();
+          ids.add(item.id);return item;
+        });
+        candidate={...previousDb,items:[...previousDb.items,...additions]};
+      }else{
+        // Explicit restore only; download must succeed before replacing anything.
+        download("closetia-avant-restauration.json",JSON.stringify({format:"CLOSETIA",version:2,exportedAt:new Date().toISOString(),...previousDb},null,2),"application/json");
+        const defaults=fresh();
+        const incoming=x.settings && typeof x.settings==="object"?x.settings:{};
+        candidate={items:importedItems,outfits:Array.isArray(x.outfits)?x.outfits:[],calendar:x.calendar && typeof x.calendar==="object"?x.calendar:{},palette:Array.isArray(x.palette)?x.palette:[],settings:{...defaults.settings,...incoming,profile:{...defaults.settings.profile,...(incoming.profile||{})},colorimetry:{...defaults.settings.colorimetry,...(incoming.colorimetry||{}),palette:Array.isArray((incoming.colorimetry||{}).palette)?incoming.colorimetry.palette:[],selectedColors:Array.isArray((incoming.colorimetry||{}).selectedColors)?incoming.colorimetry.selectedColors:[]},friends:Array.isArray(incoming.friends)?incoming.friends:[],shared:Array.isArray(incoming.shared)?incoming.shared:[]}};
+      }
+      db=candidate;
+      if(!save()){
+        db=previousDb;
+        render();
+        alert("Import annulé : le navigateur n'a pas pu enregistrer les données. Ton dressing précédent a été conservé.");
+        return;
+      }
+      alert(mode==="add"?"Articles ajoutés localement. Le dressing existant a été conservé. La synchronisation Cloud peut encore être en attente.":"Sauvegarde restaurée localement. La synchronisation Cloud peut encore être en attente.");
+    }catch(e){console.error(e);alert("Import impossible : fichier invalide ou sauvegarde préalable impossible. Aucune restauration effectuée.");}
   };
   reader.readAsText(file);
 }
