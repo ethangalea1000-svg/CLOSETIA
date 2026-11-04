@@ -26,5 +26,7 @@ jobs:
         run: node --input-type=module --check < functions/_middleware.js
       - name: Check account directory API syntax
         run: node --input-type=module --check < 'functions/api/accounts/[[path]].js'
+      - name: Test import image filter
+        run: node tests/import-images.test.mjs
       - name: Test snapshot merge protections
         run: node tests/preview-smoke.test.mjs
