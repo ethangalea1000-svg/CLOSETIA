@@ -38,6 +38,8 @@ ws.onmessage = e => { const m = JSON.parse(e.data); if (m.id && pending[m.id]) p
 const send = (method, params = {}) => new Promise(r => { const i = ++id; pending[i] = r; ws.send(JSON.stringify({ id: i, method, params })); });
 const ev = async s => (await send("Runtime.evaluate", { expression: s, awaitPromise: true, returnByValue: true })).result.result?.value;
 await send("Page.enable");
+await send("Network.enable");
+await send("Network.setBlockedURLs", {urls:["https://*"]});
 await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
 await send("Page.addScriptToEvaluateOnNewDocument", { source: `window.__al=[];window.__cf=[];window.__dl=0;window.__ans=true;window.alert=m=>window.__al.push(m);window.confirm=m=>{window.__cf.push(m);return window.__ans};const oc=URL.createObjectURL;URL.createObjectURL=b=>{window.__dl++;return oc.call(URL,b)};const of=window.fetch;window.fetch=function(u){if(String(u).includes('/api/accounts/me'))return Promise.resolve(new Response(JSON.stringify({ok:true,user:{username:'testeur-local'}}),{status:200,headers:{'Content-Type':'application/json'}}));if(String(u).includes('/api/'))return Promise.resolve(new Response('{"ok":false}',{status:503}));return of.apply(this,arguments)}` });
 
@@ -75,6 +77,10 @@ try {
   await fresh(); s = await doImport(JSON.stringify({ format: "CLOSETIA-ITEMS", version: 1, entries: [{ name: "propre", image: png }, { name: "sans image" }] }), true, "Ajouter les articles");
   assert.equal(s.cf, 0, "clean import must not ask"); assert.deepEqual(s.items.map(i => i[0]), ["Existant", "propre", "sans image"]);
   assert.equal(await ev("document.documentElement.scrollWidth<=innerWidth"), true, "no horizontal scroll at 390px");
-  console.log("CLOSETIA import flow tests passed.");
+  for(const [version,expected] of [[1,2],[2,2],[999,1]]){
+    await fresh();s=await doImport(JSON.stringify({format:"CLOSETIA",version,items:[{name:"Version-test"}]}),true,"Ajouter les articles");
+    assert.equal(s.items.length,expected,"complete version "+version);
+  }
+  console.log("CLOSETIA import flow tests passed, plus full envelope v1/v2/999. HTTPS blocked.");
 } finally { chrome.kill(); server.close(); }
 process.exit(0);
