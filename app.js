@@ -484,8 +484,12 @@ function importJSON(file){
   reader.onload=async()=>{
     try{
       const x=JSON.parse(reader.result);
+      if(!x || typeof x!=="object" || Array.isArray(x)) throw new Error("Sauvegarde invalide");
       const itemOnly=x.format==="CLOSETIA-ITEMS" && x.version===1;
       if(x.format==="CLOSETIA-ITEMS" && !itemOnly) throw new Error("Version d'import inconnue");
+      // Reject explicit incompatible envelopes; preserve legacy raw backups without format/version.
+      if(!itemOnly && x.format!==undefined && x.format!=="CLOSETIA") throw new Error("Format d'import inconnu");
+      if(!itemOnly && x.version!==undefined && x.version!==1 && x.version!==2) throw new Error("Version d'import inconnue");
       const records=itemOnly?x.entries:x.items;
       if(!Array.isArray(records) || records.some(item=>!item || typeof item!=="object" || Array.isArray(item))) throw new Error("Articles invalides");
       // Validate images BEFORE any mutation; never drop photos silently.
