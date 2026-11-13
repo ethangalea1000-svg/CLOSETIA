@@ -131,6 +131,14 @@ function cookieClear() { return `${COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure
 function validUsername(value) {
   return typeof value === "string" && /^[a-zA-Z0-9_.-]{3,24}$/.test(value);
 }
+// Only fixed diagnostic labels reach provider logs. Never log values, messages or stacks.
+function authDiagnostic(path, phase, error) {
+  if (!["register", "email-register", "login", "email-login"].includes(path)) return;
+  const allowed = ["Error", "TypeError", "SyntaxError", "RangeError", "OperationError", "NotSupportedError", "DataError", "InvalidAccessError"];
+  const kind = allowed.includes(error?.name) ? error.name : "Error";
+  const code = phase === "password-hash" && /iterations?/i.test(String(error?.message || "")) ? "iteration-constraint" : "unspecified";
+  console.error("[CLOSETIA auth]", { route: path, phase, kind, code });
+}
 export async function onRequest({ request, env }) {
   if (!env.CLOSETIA_DB || !env.AUTH_SECRET || String(env.AUTH_SECRET).length < 32) {
     return fail("Annuaire non configuré : la base D1 CLOSETIA_DB et le secret AUTH_SECRET doivent être configurés dans l’environnement Preview.", 503);
@@ -153,6 +161,7 @@ export async function onRequest({ request, env }) {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: { "Access-Control-Allow-Origin": url.origin, "Access-Control-Allow-Credentials": "true", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "Content-Type" } });
   try { await init(env.CLOSETIA_DB); } catch (_) { return fail("La base de comptes n’est pas accessible. Vérifie la liaison D1 de la Preview.", 503); }
   const user = await currentUser(request, env);
+  let authPhase = "request";
   try {
     if (path === "register" && request.method === "POST") {
       const body = await request.json();
@@ -161,11 +170,13 @@ export async function onRequest({ request, env }) {
       if (!validUsername(username)) return fail("Le pseudo doit contenir 3 à 24 caractères : lettres, chiffres, point, tiret ou soulignement.");
       if (password.length < 10 || password.length > 128) return fail("Le mot de passe doit contenir entre 10 et 128 caractères.");
       const id = crypto.randomUUID(), salt = b64u(crypto.getRandomValues(new Uint8Array(16)));
+      authPhase = "password-hash";
       const hash = await passwordHash(password, salt);
       try {
         await env.CLOSETIA_DB.prepare("INSERT INTO closetia_accounts (id,username,username_norm,salt,password_hash,created_at) VALUES (?,?,?,?,?,?)")
           .bind(id, username, username.toLocaleLowerCase("en-US"), salt, hash, new Date().toISOString()).run();
       } catch (_) { return fail("Ce pseudo est déjà utilisé. Choisis-en un autre.", 409); }
+      authPhase = "session-cookie";
       return json({ ok:true, user:{id,username} }, 201, { "Set-Cookie": await issueCookie(id, env.AUTH_SECRET) });
     }
     if (path === "email-register" && request.method === "POST") {
@@ -178,11 +189,13 @@ export async function onRequest({ request, env }) {
       if (!validEmail(email)) return fail("Saisis une adresse e-mail valide.");
       if (password.length < 10 || password.length > 128) return fail("Le mot de passe doit contenir entre 10 et 128 caractères.");
       const id = crypto.randomUUID(), salt = b64u(crypto.getRandomValues(new Uint8Array(16)));
+      authPhase = "password-hash";
       const hash = await passwordHash(password, salt);
       try {
         await env.CLOSETIA_DB.prepare("INSERT INTO closetia_accounts (id,username,username_norm,salt,password_hash,created_at,email,email_norm) VALUES (?,?,?,?,?,?,?,?)")
           .bind(id, username, username.toLocaleLowerCase("en-US"), salt, hash, new Date().toISOString(), email, emailNorm).run();
       } catch (_) { return fail("Ce pseudo ou cette adresse e-mail est déjà utilisé.", 409); }
+      authPhase = "session-cookie";
       return json({ok:true,user:{id,username}},201,{"Set-Cookie":await issueCookie(id,env.AUTH_SECRET)});
     }
     if (path === "email-login" && request.method === "POST") {
@@ -192,6 +205,7 @@ export async function onRequest({ request, env }) {
       if (!validUsername(String(body.username || "").trim()) || !validEmail(emailNorm)) return fail("Vérifie ton pseudo et ton adresse e-mail.");
       const row = await env.CLOSETIA_DB.prepare("SELECT id,username,salt,password_hash FROM closetia_accounts WHERE email_norm = ? AND username_norm = ?").bind(emailNorm, usernameNorm).first();
       if (!row) return fail("Pseudo, e-mail ou mot de passe incorrect.",401);
+      authPhase = "password-hash";
       const candidate = await passwordHash(String(body.password || ""), row.salt);
       const left=encoder.encode(candidate),right=encoder.encode(row.password_hash);
       let diff=left.length^right.length;
@@ -233,6 +247,7 @@ export async function onRequest({ request, env }) {
       const row = await env.CLOSETIA_DB.prepare("SELECT id,username,salt,password_hash FROM closetia_accounts WHERE username_norm = ?")
         .bind(username.toLocaleLowerCase("en-US")).first();
       if (!row) return fail("Pseudo ou mot de passe incorrect.", 401);
+      authPhase = "password-hash";
       const candidate = await passwordHash(String(body.password || ""), row.salt);
       const left = encoder.encode(candidate), right = encoder.encode(row.password_hash);
       let diff = left.length ^ right.length;
@@ -286,5 +301,8 @@ export async function onRequest({ request, env }) {
       return json({ok:true,friends:rows.results||[]});
     }
     return fail("Route inconnue.",404);
-  } catch (_) { return fail("Erreur serveur temporaire. Réessaie plus tard.",500); }
+  } catch (error) {
+    authDiagnostic(path, authPhase, error);
+    return fail("Erreur serveur temporaire. Réessaie plus tard.",500);
+  }
 }
